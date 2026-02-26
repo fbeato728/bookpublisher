@@ -1,0 +1,95 @@
+{
+  "id": "vagabunda",
+  "title": "Vagabunda del cor",
+  "author": "Karin Michaelis",
+  "original_file": "VagabundA.docx",
+  "status": "split",
+  "xhtml_file": "xhtml/full.xhtml",
+  "chapters": [
+    {
+      "filename": "0100_chapter_1.xhtml",
+      "type": "chapter",
+      "name": "1"
+    },
+    {
+      "filename": "0200_chapter_2.xhtml",
+      "type": "chapter",
+      "name": "2"
+    },
+    {
+      "filename": "0300_chapter_3.xhtml",
+      "type": "chapter",
+      "name": "3"
+    },
+    {
+      "filename": "0400_chapter_4.xhtml",
+      "type": "chapter",
+      "name": "4"
+    },
+    {
+      "filename": "0500_chapter_5.xhtml",
+      "type": "chapter",
+      "name": "5"
+    },
+    {
+      "filename": "0600_chapter_6.xhtml",
+      "type": "chapter",
+      "name": "6"
+    },
+    {
+      "filename": "0700_chapter_7.xhtml",
+      "type": "chapter",
+      "name": "7"
+    },
+    {
+      "filename": "0800_chapter_8.xhtml",
+      "type": "chapter",
+      "name": "8"
+    },
+    {
+      "filename": "0900_chapter_9.xhtml",
+      "type": "chapter",
+      "name": "9"
+    },
+    {
+      "filename": "1000_chapter_10.xhtml",
+      "type": "chapter",
+      "name": "10"
+    },
+    {
+      "filename": "1100_chapter_11.xhtml",
+      "type": "chapter",
+      "name": "11"
+    },
+    {
+      "filename": "1200_chapter_12.xhtml",
+      "type": "chapter",
+      "name": "12"
+    },
+    {
+      "filename": "1300_chapter_13.xhtml",
+      "type": "chapter",
+      "name": "13"
+    },
+    {
+      "filename": "1400_chapter_14.xhtml",
+      "type": "chapter",
+      "name": "14"
+    },
+    {
+      "filename": "1500_chapter_15.xhtml",
+      "type": "chapter",
+      "name": "15"
+    },
+    {
+      "filename": "1600_chapter_16.xhtml",
+      "type": "chapter",
+      "name": "16"
+    },
+    {
+      "filename": "1700_chapter_17.xhtml",
+      "type": "chapter",
+      "name": "17"
+    }
+  ]
+}
