@@ -1,0 +1,157 @@
+@font-face {
+  src: url(../fonts/Adobe_Garamond_Pro_Regular.ttf);
+  font-family: "Adobe Garamond Pro";
+  font-weight: normal;
+  font-style: normal;
+  font-stretch: normal;
+}
+@font-face {
+  src: url(../fonts/Adobe_Garamond_Pro_Italic.ttf);
+  font-family: "Adobe Garamond Pro";
+  font-weight: normal;
+  font-style: italic;
+  font-stretch: normal;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────────── */
+a:link { text-decoration: none; }
+
+body, div, dl, dt, dd, h1, h2, h3, h4, h5, h6, p, pre, code, blockquote {
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+}
+body { -epub-hyphens: auto; }
+@page { margin: 20px; }
+a._idGenColorInherit { color: inherit; }
+div.Marco-de-texto-b-sico { border-style: solid; }
+
+/* ── Paragraph styles ────────────────────────────────────────────────────────── */
+p._NORMAL,
+p._NORMAL---anidado {
+  color: #000;
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 80%;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: normal;
+  line-height: 1.5em;
+  margin: 1% 0 4% 0;
+  orphans: 1;
+  widows: 1;
+  page-break-after: auto;
+  page-break-before: auto;
+  text-align: justify;
+  text-decoration: none;
+  text-indent: 6%;
+  text-transform: none;
+}
+p._NORMAL---sin {
+  color: #000;
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 90%;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: normal;
+  line-height: 1.2em;
+  margin: 0;
+  orphans: 1;
+  widows: 1;
+  page-break-after: auto;
+  page-break-before: auto;
+  text-align: justify;
+  text-decoration: none;
+  text-indent: 6%;
+  text-transform: none;
+}
+p._NORMAL---title {
+  color: #000;
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 160%;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: normal;
+  line-height: 1.2em;
+  margin: 0;
+  orphans: 1;
+  widows: 1;
+  page-break-after: auto;
+  page-break-before: auto;
+  text-align: justify;
+  text-decoration: none;
+  text-indent: 6%;
+  text-transform: none;
+}
+p._Nota-al-peu {
+  color: #000;
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 0.8em;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: normal;
+  line-height: 1.2;
+  margin: 0 0 0 10px;
+  orphans: 1;
+  widows: 1;
+  page-break-after: auto;
+  page-break-before: auto;
+  text-align: justify;
+  text-decoration: none;
+  text-indent: -10px;
+  text-transform: none;
+}
+p.CAPITULO-1 {
+  color: #000;
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 1.333em;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: bold;
+  line-height: 0.813;
+  margin: 0 0 26px 0;
+  orphans: 1;
+  widows: 1;
+  page-break-after: auto;
+  page-break-before: auto;
+  text-align: center;
+  text-decoration: none;
+  text-indent: 0;
+  text-transform: none;
+}
+p.portadilla-titulo {
+  color: #000;
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 1.333em;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: bold;
+  line-height: 1;
+  margin: 0 0 13px 0;
+  orphans: 1;
+  widows: 1;
+  page-break-after: auto;
+  page-break-before: auto;
+  text-align: center;
+  text-decoration: none;
+  text-indent: 0;
+  text-transform: none;
+}
+
+/* ── Paragraph overrides ─────────────────────────────────────────────────────── */
+p.ParaOverride-1 { page-break-after: always; text-indent: 0; }
+p.ParaOverride-2 { page-break-after: always; }
+p.ParaOverride-3 { margin-bottom: 0;    text-indent: 0; text-align: center; }
+p.ParaOverride-4 { margin-bottom: 14px; text-indent: 0; text-align: center; }
+p.ParaOverride-5 { margin-bottom: 28px; text-indent: 0; text-align: center; }
+p.ParaOverride-6 { text-indent: 0; }
+p._idGenParaOverride-1 { page-break-after: always; }
+
+/* ── Span styles ─────────────────────────────────────────────────────────────── */
+span.NORMAL-cva       { font-style: italic; font-weight: normal; }
+span.NORMAL_ngrta     { font-style: normal; font-weight: bold; }
+span.NOTA_Superindice { vertical-align: super; }
+span.Nota-pie_CVA     { font-family: "Adobe Garamond Pro", serif; font-style: italic; font-weight: normal; }
+span.Nota-pie_Ngrta   { font-family: "Adobe Garamond Pro", serif; font-style: normal; font-weight: bold; }
+span.CharOverride-4   { font-size: 58%; }
+span.CharOverride-6   { color: #fff; }
+.s2 { list-style: none; }

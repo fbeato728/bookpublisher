@@ -64,7 +64,6 @@ html, body {
 .fs-btn:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
 .fs-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(192,57,43,0.07); }
 
-
 /* ── Sidebar ── */
 .sidebar {
   background: var(--surface); border-right: 1px solid var(--border);
@@ -204,7 +203,7 @@ html, body {
 .editor-fileitem { padding: 0.45rem 1rem; cursor: pointer; font-family: var(--mono); font-size: 0.72rem; color: var(--text2); border-left: 3px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 0.1s; }
 .editor-fileitem:hover { background: var(--surface2); color: var(--text); }
 .editor-fileitem.active { background: var(--surface2); color: var(--text); border-left-color: var(--accent); }
-.editor-main { display: flex; flex-direction: column; overflow: hidden; }
+.editor-main { display: flex; flex-direction: column; overflow: hidden; position: relative; }
 .editor-toolbar { padding: 0.5rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
 .editor-filename { font-family: var(--mono); font-size: 0.78rem; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #lt-lang { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); font-family: var(--mono); font-size: 0.72rem; padding: 0.22rem 0.45rem; border-radius: 3px; outline: none; }
@@ -256,9 +255,29 @@ html, body {
 .sugg-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
 .pop-no-sugg { font-family: var(--mono); font-size: 0.68rem; color: var(--text3); font-style: italic; }
 
+
+/* ── Format buttons ── */
+.fn-marker {
+  display: inline-block; font-family: var(--mono); font-size: 0.72em;
+  color: var(--accent); background: rgba(192,57,43,0.1);
+  border: 1px solid rgba(192,57,43,0.3); border-radius: 3px;
+  padding: 0 0.25em; cursor: default; user-select: none;
+  vertical-align: super; line-height: 1.4;
+}
+.fmt-btn {
+  background: none; border: 1px solid transparent;
+  color: var(--text3); font-family: var(--serif); font-size: 0.95rem;
+  width: 26px; height: 26px; border-radius: 3px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.1s; padding: 0; line-height: 1; flex-shrink: 0;
+}
+.fmt-btn:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+.fmt-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(192,57,43,0.07); }
+.fmt-sep { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; }
 /* ── Spinner ── */
 .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.5s linear infinite; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
 /* ── Build panel ── */
 .build-section { margin-bottom: 1.25rem; }
 .build-section-head {
@@ -293,19 +312,65 @@ html, body {
   font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--text3); margin-bottom: 0.6rem;
 }
+.image-item {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--text2);
+  padding: 0.25rem 0.4rem; border-radius: 3px; border: 1px solid transparent;
+}
+.image-item:hover { background: var(--surface2); border-color: var(--border); }
+.image-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.image-cover-btn { font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 2px;
+  border: 1px solid var(--border); background: transparent; cursor: pointer; color: var(--text3); }
+.image-cover-btn.is-cover { color: var(--accent); border-color: var(--accent); }
+.image-del-btn { font-size: 0.72rem; color: var(--text3); cursor: pointer; padding: 0 0.2rem;
+  background: none; border: none; }
+.image-del-btn:hover { color: #e05; }
 .build-file-pick {
   font-family: var(--mono); font-size: 0.72rem; color: var(--text2);
   padding: 0.3rem 0.5rem; border-radius: 3px; cursor: pointer;
   border: 1px solid transparent; transition: all 0.1s;
 }
 .build-file-pick:hover { background: var(--surface2); border-color: var(--border); color: var(--text); }
+/* ── Ignore words panel ── */
+.ignore-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 240px;
+  background: var(--surface); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 10;
+  transform: translateX(100%); transition: transform 0.2s ease;
+}
+.ignore-panel.open { transform: translateX(0); }
+.ignore-panel-head {
+  padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.ignore-panel-title { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); }
+.ignore-panel-close { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 1rem; line-height: 1; padding: 0 0.2rem; }
+.ignore-panel-close:hover { color: var(--accent); }
+.ignore-list { flex: 1; overflow-y: auto; padding: 0.4rem 0; }
+.ignore-item {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 0.85rem; font-family: var(--mono); font-size: 0.72rem; color: var(--text2);
+}
+.ignore-item span { flex: 1; }
+.ignore-del { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 0.85rem; line-height: 1; padding: 0 0.1rem; }
+.ignore-del:hover { color: var(--accent); }
+.ignore-empty { padding: 1rem 0.85rem; font-family: var(--mono); font-size: 0.72rem; color: var(--text3); }
+.pop-ignore-btn {
+  margin-top: 0.4rem; width: 100%;
+  background: none; border: 1px solid var(--border2);
+  color: var(--text3); font-family: var(--mono); font-size: 0.68rem;
+  padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; transition: all 0.1s;
+  text-align: left;
+}
+.pop-ignore-btn:hover { color: var(--accent); border-color: var(--accent); background: #fdf0ee; }
+
 </style>
 </head>
 <body>
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 18</span></div>
+    <div class="logo">Book<span>Publisher 43</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -362,13 +427,10 @@ html, body {
       <div class="panel-header"><span class="panel-title">Upload Manuscript</span></div>
       <div class="panel-body">
         <div id="upload-status"></div>
-
-        <!-- Format tabs -->
         <div class="upload-tabs">
           <button class="upload-tab active" id="tab-docx" onclick="setUploadMode('docx')">DOCX / ODT</button>
           <button class="upload-tab" id="tab-epub" onclick="setUploadMode('epub')">EPUB</button>
         </div>
-
         <div class="upload-area" id="upload-area">
           <div class="upload-icon">📄</div>
           <div class="upload-text" id="upload-text">
@@ -376,7 +438,6 @@ html, body {
           </div>
         </div>
         <input type="file" id="file-input" accept=".docx,.odt" style="display:none">
-
         <div class="form-group">
           <label class="form-label">Project ID <small style="color:var(--text3)">(letters, numbers, hyphens only)</small></label>
           <input class="form-input" type="text" id="input-project-id" placeholder="e.g. vagabunda"
@@ -422,12 +483,25 @@ html, body {
     <div class="panel" id="panel-editor">
       <div class="editor-layout">
         <div class="editor-filetree">
-          <div class="editor-filetree-head">Chapters</div>
+          <div class="editor-filetree-head">Files</div>
           <div class="editor-filelist" id="editor-filelist"></div>
         </div>
         <div class="editor-main">
+          <!-- Ignore words panel — spans full height of editor-main -->
+          <div class="ignore-panel" id="ignore-panel">
+            <div class="ignore-panel-head">
+              <span class="ignore-panel-title">Exceptions</span>
+              <button class="ignore-panel-close" onclick="toggleIgnorePanel()" title="Close">×</button>
+            </div>
+            <div class="ignore-list" id="ignore-list"></div>
+          </div>
           <div class="editor-toolbar">
             <span class="editor-filename" id="editor-filename">— no file open —</span>
+            <button class="fmt-btn" id="btn-bold"   title="Bold (Ctrl+B)"><b>B</b></button>
+            <button class="fmt-btn" id="btn-italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <span class="fmt-sep"></span>
+            <button class="fmt-btn" id="btn-insert-fn" title="Insert footnote reference" onclick="showFootnoteInsertDialog()" style="display:none">fn</button>
+            <span class="fmt-sep"></span>
             <select id="lt-lang" class="lt-only">
               <option value="ca-ES">Català</option>
               <option value="es">Español</option>
@@ -443,6 +517,7 @@ html, body {
               <button class="btn" id="btn-monaco-fs-up" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Increase code font">+</button>
             </span>
             <button class="btn" id="btn-toggle-mode" title="Toggle text / code view">⟨/⟩ Code</button>
+            <button class="btn lt-only" id="btn-ignore-panel" onclick="toggleIgnorePanel()" title="Exception words">☰ Exceptions</button>
             <button class="btn primary" id="btn-save-chapter">Save</button>
           </div>
           <div class="editor-content-area">
@@ -464,21 +539,15 @@ html, body {
     <div class="panel" id="panel-build">
       <div class="panel-header">
         <span class="panel-title">Build</span>
-        <!-- Profile tabs -->
         <div class="upload-tabs" style="margin:0 1rem 0 1.5rem">
           <button class="upload-tab active" id="build-tab-digital" onclick="setBuildProfile('digital')">Digital EPUB</button>
           <button class="upload-tab"        id="build-tab-print"   onclick="setBuildProfile('print')">Print EPUB</button>
         </div>
         <span id="build-profile-badge" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3)">digital</span>
       </div>
-
       <div class="panel-body" style="display:grid;grid-template-columns:240px 1fr 240px;gap:1.25rem;align-items:start;overflow-y:auto;height:100%;padding:1rem 1.25rem">
-
-        <!-- Left: spine editor -->
         <div>
           <div id="build-status" style="margin-bottom:0.75rem"></div>
-
-          <!-- Front matter -->
           <div class="build-section">
             <div class="build-section-head">
               Front matter
@@ -486,14 +555,10 @@ html, body {
             </div>
             <div id="build-front-list" class="build-item-list"></div>
           </div>
-
-          <!-- Chapters (read-only) -->
           <div class="build-section">
             <div class="build-section-head">Chapters <span style="color:var(--text3);font-weight:normal">(from Split)</span></div>
             <div id="build-chapter-list" class="build-item-list build-chapters-ro"></div>
           </div>
-
-          <!-- Back matter -->
           <div class="build-section">
             <div class="build-section-head">
               Back matter
@@ -502,8 +567,6 @@ html, body {
             <div id="build-back-list" class="build-item-list"></div>
           </div>
         </div>
-
-        <!-- Middle: file preview -->
         <div style="display:flex;flex-direction:column;gap:0.5rem;min-height:0">
           <div id="build-preview-header" style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);padding:0.3rem 0;border-bottom:1px solid var(--border)">
             Preview — <span id="build-preview-filename" style="color:var(--text2)">click an item</span>
@@ -513,21 +576,43 @@ html, body {
           </div>
           <div style="border-top:1px solid var(--border);padding-top:0.5rem;display:flex;gap:0.5rem">
             <button class="btn" id="btn-build-preview-edit" style="display:none" onclick="openBuildItemInEditor()">✎ Open in Editor</button>
+            <button class="btn" id="btn-build-copy-to-project" style="display:none" onclick="copyTemplateToProject()">⊕ Copy to project</button>
           </div>
         </div>
-
-        <!-- Right: covers + actions -->
         <div style="display:flex;flex-direction:column;gap:1rem;position:sticky;top:0">
-
-          <!-- Cover -->
           <div class="build-card">
-            <div class="build-card-title" id="build-cover-label">Digital cover image</div>
-            <div id="build-cover-display" style="margin:0.5rem 0;font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No cover set</div>
-            <input type="text" class="form-input" id="build-cover-input" placeholder="filename in images/ folder"
-              style="margin-bottom:0.4rem" oninput="onBuildCoverInput()">
+            <div class="build-card-title">Images</div>
+            <div id="image-list" style="margin:0.4rem 0;display:flex;flex-direction:column;gap:0.3rem;max-height:200px;overflow-y:auto"></div>
+            <label class="btn" style="cursor:pointer;margin-top:0.3rem;text-align:center">
+              ⊕ Upload image
+              <input type="file" id="image-upload-input" accept="image/*" style="display:none" onchange="uploadImage(this)">
+            </label>
           </div>
-
-          <!-- Metadata -->
+          <!-- footnotes: collapsed = just upload link, expanded = full card -->
+          <div id="fn-card-collapsed" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">
+            <label style="cursor:pointer;color:var(--text3)">
+              ⊕ Upload footnotes
+              <input type="file" id="footnote-upload-input" accept=".txt" style="display:none" onchange="uploadFootnotes(this)">
+            </label>
+          </div>
+          <div id="fn-card-expanded" class="build-card" style="display:none">
+            <div class="build-card-title">Footnotes</div>
+            <div id="footnote-status" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.75rem"></div>
+            <div style="margin-bottom:0.75rem">
+              <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:0.4rem">Variants</div>
+              <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.5rem">
+                <span style="color:var(--text2)">def</span> is always available. Add extra codes for spacing variants.
+              </div>
+              <div id="fn-variants-list" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem"></div>
+              <div style="display:flex;gap:0.4rem;align-items:center">
+                <input id="fn-variant-input" class="form-input" type="text" placeholder="e.g. one" maxlength="10"
+                  style="width:80px;font-size:0.78rem;padding:0.3rem 0.5rem"
+                  onkeydown="if(event.key==='Enter')addFnVariant()">
+                <button class="btn" onclick="addFnVariant()" style="padding:0.3rem 0.6rem">+ Add</button>
+              </div>
+            </div>
+            <button class="btn" onclick="deleteFootnotes()">✕ Remove footnotes</button>
+          </div>
           <div class="build-card">
             <div class="build-card-title">Metadata</div>
             <div class="form-group" style="margin-bottom:0.5rem">
@@ -539,24 +624,17 @@ html, body {
               <input class="form-input" type="text" id="build-publisher" placeholder="BonPort" style="font-size:0.82rem">
             </div>
           </div>
-
-          <!-- Actions -->
           <div class="build-card">
             <div class="build-card-title">Actions</div>
             <div style="display:flex;flex-direction:column;gap:0.5rem">
-              <button class="btn" id="btn-hyphenate" disabled title="Coming soon">
-                ⟳ Hyphenate chapters
-              </button>
-              <button class="btn primary" id="btn-build-epub" onclick="buildEpub()">
-                ↓ Build EPUB
-              </button>
-              <button class="btn" id="btn-convert-pdf" disabled title="Coming soon">
-                ⎙ Convert to PDF
-              </button>
+              <button class="btn" id="btn-hyphenate" disabled onclick="hyphenateChapters()">⟳ Hyphenate chapters</button>
+              <button class="btn" id="btn-dehyphenate" disabled onclick="dehyphenateChapters()">✕ Remove hyphens</button>
+              <button class="btn primary" id="btn-build-epub" onclick="buildEpub()">↓ Build EPUB</button>
+              <button class="btn" id="btn-convert-pdf" disabled title="Coming soon">⎙ Convert to PDF</button>
+              <button class="btn danger" onclick="resetBuildConfig()" title="Reset to defaults">↺ Reset to chapters only</button>
             </div>
             <div id="build-action-status" style="margin-top:0.5rem"></div>
           </div>
-
         </div>
       </div>
     </div>
@@ -570,10 +648,26 @@ html, body {
   </main>
 </div>
 
+<div id="fn-dialog" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:1rem;
+  z-index:1000;min-width:300px;box-shadow:0 4px 20px rgba(0,0,0,0.3)">
+  <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;
+    color:var(--text3);margin-bottom:0.6rem">Insert Footnote Reference</div>
+  <div id="fn-variant-selector" style="display:none;margin-bottom:0.6rem">
+    <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:0.3rem">Variant</div>
+    <div id="fn-variant-buttons" style="display:flex;gap:0.35rem;flex-wrap:wrap"></div>
+  </div>
+  <div id="fn-dialog-list" style="max-height:260px;overflow-y:auto;margin-bottom:0.75rem;
+    display:flex;flex-direction:column;gap:0.25rem"></div>
+  <button class="btn" onclick="closeFnDialog()" style="width:100%">Cancel</button>
+</div>
+<div id="fn-dialog-overlay" style="display:none;position:fixed;inset:0;z-index:999" onclick="closeFnDialog()"></div>
+
 <div id="lt-popover">
   <div class="pop-rule" id="pop-rule"></div>
   <div class="pop-msg"  id="pop-msg"></div>
   <div class="pop-suggs" id="pop-suggs"></div>
+  <button class="pop-ignore-btn" id="pop-ignore-btn" style="display:none" onclick="ignoreCurrentWord()">⊘ Ignore this word for project</button>
 </div>
 
 <script>
@@ -598,7 +692,9 @@ let checking           = false;
 let editorMode         = 'text';
 let monacoEditor       = null;
 let monacoReady        = false;
+let monacoLoading      = false;   // guard: suppress isDirty during programmatic setValue
 let uploadMode         = 'docx';
+let fileIsHyphenated   = false;    // true when the loaded file contains soft hyphens
 
 // ── Monaco init ─────────────────────────────────────────────────────────────
 function initMonaco(cb) {
@@ -616,11 +712,9 @@ function showPanel(name) {
   document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
   document.getElementById('fs-control').style.display =
     (name === 'split' || name === 'editor') ? 'flex' : 'none';
-  if (name === 'build'  && currentProject) loadBuildConfig();
-  if (name === 'split' && currentProject) {
-    loadFullXhtml();
-  }
-  if (name === 'editor' && currentProject) loadChapterList();
+  if (name === 'build'  && currentProject) { loadBuildConfig(); loadImageList(); loadFootnotes(); }
+  if (name === 'split'  && currentProject) loadFullXhtml();
+  if (name === 'editor' && currentProject) { loadChapterList(); loadIgnoreWords(); loadFootnotes(); }
   if (monacoEditor) monacoEditor.layout();
 }
 
@@ -741,20 +835,16 @@ async function uploadManuscript() {
 async function loadFullXhtml() {
   const area = document.getElementById('split-text-area');
   area.innerHTML = '<div style="font-family:var(--mono);font-size:0.78rem;color:var(--text3);padding:2rem 0">Loading manuscript…</div>';
-  splitElements = [];
-  splitMarkers = [];
+  splitElements = []; splitMarkers = [];
   updateSplitList();
-
   try {
     const res  = await fetch(`${API}/projects/${currentProject.id}/full-xhtml`);
     const data = await res.json();
     if (!res.ok) { area.innerHTML = `<p style="color:var(--accent)">${data.error}</p>`; return; }
-
     const parser = new DOMParser();
     const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
     const body   = doc.querySelector('body');
     if (!body) { area.innerHTML = '<p style="color:var(--accent)">Could not parse XHTML body</p>'; return; }
-
     area.innerHTML = '';
     let idx = 0;
     for (const child of body.children) {
@@ -768,7 +858,6 @@ async function loadFullXhtml() {
       splitElements.push(wrapper);
       idx++;
     }
-
     if (splitProjectId !== currentProject.id || !splitSavedData.length) {
       try {
         const stored = localStorage.getItem('splits:' + currentProject.id);
@@ -780,7 +869,6 @@ async function loadFullXhtml() {
       const el = splitElements[d.beforeIndex];
       if (el) _insertMarkerDOM(d.beforeIndex, el, d.type, d.name);
     });
-
   } catch(e) {
     area.innerHTML = `<p style="color:var(--accent)">Error: ${e.message}</p>`;
   }
@@ -805,10 +893,8 @@ function _insertMarkerDOM(beforeIndex, wrapperEl, type, name) {
   wrapperEl.parentNode.insertBefore(marker, wrapperEl);
   marker.querySelector('.marker-type').value = type || 'chapter';
   marker.querySelector('.marker-name').value = name || '';
-
   const obj = { beforeIndex, marker };
   splitMarkers.push(obj);
-
   marker.querySelector('.split-marker-del').addEventListener('click', e => {
     e.stopPropagation();
     marker.remove();
@@ -861,8 +947,7 @@ function updateSplitList() {
 
 function clearAllSplits() {
   splitMarkers.forEach(m => m.marker.remove());
-  splitMarkers   = [];
-  splitSavedData = [];
+  splitMarkers = []; splitSavedData = [];
   if (currentProject) localStorage.removeItem('splits:' + currentProject.id);
   updateSplitList();
 }
@@ -897,25 +982,96 @@ async function applySplits() {
 document.getElementById('btn-apply-splits').addEventListener('click', applySplits);
 document.getElementById('btn-clear-splits').addEventListener('click', clearAllSplits);
 
+
 // ── Editor: file list ─────────────────────────────────────────────────────────
 async function loadChapterList() {
   const list = document.getElementById('editor-filelist');
   list.innerHTML = '';
   try {
-    const res      = await fetch(`${API}/projects/${currentProject.id}/chapters`);
-    const chapters = await res.json();
-    if (!chapters.length) {
-      list.innerHTML = '<div style="padding:1rem;font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No chapters yet.<br>Go to Split first.</div>';
+    // Load chapters
+    const res        = await fetch(`${API}/projects/${currentProject.id}/chapters`);
+    const chapters   = await res.json();
+
+    // Load structural files (credits, taula, etc.)
+    const res2       = await fetch(`${API}/projects/${currentProject.id}/xhtml`);
+    const allStructural = res2.ok ? await res2.json() : [];
+
+    // Filter structural files to only those referenced in build config
+    // so removing from build panel also removes from editor
+    const res3      = await fetch(`${API}/projects/${currentProject.id}/build-config`);
+    const bConfig   = res3.ok ? await res3.json() : null;
+    let structural  = allStructural;
+    if (bConfig) {
+      const referenced = new Set();
+      ['digital', 'print'].forEach(profile => {
+        if (!bConfig[profile]) return;
+        [...(bConfig[profile].front_matter || []),
+         ...(bConfig[profile].back_matter  || [])].forEach(item => {
+          referenced.add(item.id + '.xhtml');
+        });
+      });
+      structural = allStructural.filter(f => referenced.has(f));
+    }
+
+    if (!chapters.length && !structural.length) {
+      list.innerHTML = '<div style="padding:1rem;font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No files yet.<br>Go to Split first.</div>';
       return;
     }
-    chapters.forEach(ch => {
-      const el = document.createElement('div');
-      el.className = 'editor-fileitem';
-      el.textContent = ch.name || ch.filename;
-      el.title = ch.filename;
-      el.onclick = () => openChapter(ch.filename, el);
-      list.appendChild(el);
+    if (structural.length) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'padding:0.4rem 1rem 0.2rem;font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)';
+      sep.textContent = 'Front / Back matter';
+      list.appendChild(sep);
+      structural.forEach(filename => {
+        const el = document.createElement('div');
+        el.className = 'editor-fileitem';
+        el.textContent = filename;
+        el.title = filename;
+        el.onclick = () => openChapter(filename, el);
+        list.appendChild(el);
+      });
+    }
+    if (chapters.length) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'padding:0.4rem 1rem 0.2rem;font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);margin-top:0.25rem';
+      sep.textContent = 'Chapters';
+      list.appendChild(sep);
+      chapters.forEach(ch => {
+        const el = document.createElement('div');
+        el.className = 'editor-fileitem';
+        el.textContent = ch.name || ch.filename;
+        el.title = ch.filename;
+        el.onclick = () => openChapter(ch.filename, el);
+        list.appendChild(el);
+      });
+    }
+
+    // CSS files section
+    // Stylesheets section
+    const cssSep = document.createElement('div');
+    cssSep.style.cssText = 'padding:0.4rem 1rem 0.2rem;font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);margin-top:0.25rem';
+    cssSep.textContent = 'Stylesheets';
+    list.appendChild(cssSep);
+
+    const cssGroups = [
+      { label: 'Digital + Print', files: ['digital.css', 'print.css', 'digital-credits.css', 'print-credits.css'] },
+      { label: 'Print only',      files: ['book_big_title.css', 'taula.css'] },
+    ];
+    cssGroups.forEach(group => {
+      const grpLabel = document.createElement('div');
+      grpLabel.style.cssText = 'padding:0.25rem 1rem 0.1rem 1rem;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-style:italic';
+      grpLabel.textContent = group.label;
+      list.appendChild(grpLabel);
+      group.files.forEach(filename => {
+        const el = document.createElement('div');
+        el.className = 'editor-fileitem';
+        el.textContent = filename;
+        el.title = filename;
+        el.onclick = () => openChapter(filename, el);
+        list.appendChild(el);
+      });
     });
+
   } catch(e) { console.error('loadChapterList:', e); }
 }
 
@@ -929,18 +1085,62 @@ async function openChapter(filename, listEl) {
   currentChapterFile = filename;
   document.getElementById('editor-filename').textContent = filename;
   setEditorStatus('Loading…', '');
-  ltMatches = []; isDirty = false;
+  ltMatches = []; isDirty = false; fileIsHyphenated = false;
+
+  // Chapters use /chapters/, CSS use /styles/, structural files use /xhtml/
+  const isChapter = /^\d{4}_/.test(filename);
+  const isCss     = filename.endsWith('.css');
+  const url = isChapter ? `${API}/projects/${currentProject.id}/chapters/${filename}`
+            : isCss     ? `${API}/projects/${currentProject.id}/styles/${filename}`
+            :               `${API}/projects/${currentProject.id}/xhtml/${filename}`;
 
   try {
-    const res  = await fetch(`${API}/projects/${currentProject.id}/chapters/${filename}`);
+    const res  = await fetch(url);
     const data = await res.json();
-    const parser = new DOMParser();
-    const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
-    const body   = doc.querySelector('body');
-    document.getElementById('editor-content').innerHTML = body ? body.innerHTML : '';
-    if (editorMode === 'code' && monacoEditor) monacoEditor.setValue(data.content);
-    document.getElementById('editor-content').dataset.rawXhtml = data.content;
-    setEditorStatus('', '');
+
+    if (isCss) {
+      // CSS always opens in code mode with CSS syntax highlighting
+      if (editorMode !== 'code') await switchToCodeMode();
+      if (monacoEditor) {
+        // Set CSS language on the model
+        const model = monacoEditor.getModel();
+        if (model) monaco.editor.setModelLanguage(model, 'css');
+        monacoLoading = true;
+        monacoEditor.setValue(data.content);
+        monacoLoading = false;
+        setTimeout(() => { isDirty = false; }, 0);
+      }
+      // Hide text-mode-only controls
+      document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
+      document.getElementById('btn-toggle-mode').style.display = 'none';
+      setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
+    } else {
+      // Restore toggle button for XHTML files
+      document.getElementById('btn-toggle-mode').style.display = '';
+      const parser = new DOMParser();
+      const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
+      const body   = doc.querySelector('body');
+      let bodyHtmlLoad = body ? body.innerHTML : '';
+      // Convert <!--fn:N--> or <!--fn:N:variant--> comments to visible fn-marker spans for text mode
+      bodyHtmlLoad = bodyHtmlLoad.replace(/<!--fn:(\d+)(?::(\w+))?-->/g, (_, n, v) => {
+        const variant = v || 'def';
+        const label   = variant === 'def' ? `[fn:${n}]` : `[fn:${n}:${variant}]`;
+        return `<span class="fn-marker" data-fn="${n}" data-variant="${variant}" contenteditable="false">${label}</span>`;
+      });
+      document.getElementById('editor-content').innerHTML = bodyHtmlLoad;
+      if (editorMode === 'code' && monacoEditor) {
+        // Restore XML language
+        const model = monacoEditor.getModel();
+        if (model) monaco.editor.setModelLanguage(model, 'xml');
+        monacoLoading = true;
+        monacoEditor.setValue(data.content);
+        monacoLoading = false;
+        setTimeout(() => { isDirty = false; }, 0);
+      }
+      document.getElementById('editor-content').dataset.rawXhtml = data.content;
+      fileIsHyphenated = data.content.includes('\u00AD');
+      setEditorStatus('', '');
+    }
   } catch(e) { setEditorStatus('Error loading file', 'err'); }
 }
 
@@ -966,18 +1166,58 @@ function switchToCodeMode() {
   hideLtPopover();
   initMonaco(err => {
     if (err) { setEditorStatus('Monaco not available — check installation', 'err'); switchToTextMode(); return; }
+
+  monaco.editor.defineTheme('pyteLight', {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: 'tag.xml', foreground: '007020', fontWeight: 'bold' },    // Keyword/Tag
+      { token: 'tag', foreground: '007020', fontWeight: 'bold' },
+      
+      { token: 'attribute.name.xml', foreground: '7b5694' },             // Identifier/Attr
+      { token: 'attribute.name', foreground: '7b5694' },
+      
+      { token: 'attribute.value.xml', foreground: '4070a0' },            // String/Value
+      { token: 'string.xml', foreground: '4070a0' },
+      { token: 'string', foreground: '4070a0' },
+      
+      { token: 'comment.xml', foreground: 'a0b0c0', fontStyle: 'italic' },
+      { token: 'comment', foreground: 'a0b0c0', fontStyle: 'italic' },
+      
+      { token: 'metatag.xml', foreground: 'a07040' },                   // Constant/PreProc
+    ],
+    colors: {
+      'editor.background': '#f0f0f0',           // pyte-light BG
+      'editor.foreground': '#404850',           // pyte-light FG
+      'editorLineNumber.background': '#8090a0', // LineNr BG
+      'editorLineNumber.foreground': '#8090a0', // LineNr FG (white)
+      'editor.lineHighlightBackground': '#F8DE7E55', // cursor_loc with transparency
+    }
+  });
+    
+  // --- 1. PLACE THE GLOBAL SETTING HERE ---
+    // This tells the engine not to suggest standard XHTML namespaces
+    monaco.languages.html.htmlDefaults.setOptions({
+      suggest: { html5: false }
+    });
+
     const container = document.getElementById('monaco-container');
     if (!monacoEditor) {
+      monacoLoading = true;
       monacoEditor = monaco.editor.create(container, {
-        value: xhtml, language: 'xml', theme: 'vs',
+        value: xhtml, language: 'xml', theme: 'pyteLight', snippetSuggestions: 'none',
         fontSize: parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT,
         fontFamily: "'IBM Plex Mono', monospace", lineNumbers: 'on',
         wordWrap: 'on', minimap: { enabled: false },
         scrollBeyondLastLine: false, automaticLayout: true,
       });
-      monacoEditor.onDidChangeModelContent(() => { isDirty = true; });
+      monacoLoading = false;
+      monacoEditor.onDidChangeModelContent(() => { if (!monacoLoading) isDirty = true; });
     } else {
+      monacoLoading = true;
       monacoEditor.setValue(xhtml);
+      monacoLoading = false;
+      setTimeout(() => { isDirty = false; }, 0);
     }
   });
 }
@@ -988,7 +1228,13 @@ function switchToTextMode() {
     const parser = new DOMParser();
     const doc    = parser.parseFromString(xhtml, 'application/xhtml+xml');
     const body   = doc.querySelector('body');
-    document.getElementById('editor-content').innerHTML = body ? body.innerHTML : xhtml;
+    let bodyHtmlSwitch = body ? body.innerHTML : xhtml;
+    bodyHtmlSwitch = bodyHtmlSwitch.replace(/<!--fn:(\d+)(?::(\w+))?-->/g, (_, n, v) => {
+      const variant = v || 'def';
+      const label   = variant === 'def' ? `[fn:${n}]` : `[fn:${n}:${variant}]`;
+      return `<span class="fn-marker" data-fn="${n}" data-variant="${variant}" contenteditable="false">${label}</span>`;
+    });
+    document.getElementById('editor-content').innerHTML = bodyHtmlSwitch;
     ltMatches = [];
   }
   editorMode = 'text';
@@ -1011,8 +1257,13 @@ document.addEventListener('keydown', e => {
 async function saveChapter() {
   if (!currentChapterFile) return;
   const xhtml = serializeToXhtml();
+  const isChapter = /^\d{4}_/.test(currentChapterFile);
+  const isCss     = currentChapterFile.endsWith('.css');
+  const url = isChapter ? `${API}/projects/${currentProject.id}/chapters/${currentChapterFile}`
+            : isCss     ? `${API}/projects/${currentProject.id}/styles/${currentChapterFile}`
+            :               `${API}/projects/${currentProject.id}/xhtml/${currentChapterFile}`;
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/chapters/${currentChapterFile}`, {
+    const res = await fetch(url, {
       method: 'PUT', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ content: xhtml })
     });
@@ -1029,6 +1280,21 @@ function serializeToXhtml() {
     while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
     span.remove();
   });
+  // Convert fn-marker spans back to <!--fn:N--> or <!--fn:N:variant--> HTML comments
+  clone.querySelectorAll('.fn-marker').forEach(span => {
+    const n       = span.getAttribute('data-fn');
+    const variant = span.getAttribute('data-variant') || 'def';
+    const commentText = variant === 'def' ? `fn:${n}` : `fn:${n}:${variant}`;
+    const comment = document.createComment(commentText);
+    span.parentNode.replaceChild(comment, span);
+  });
+  // Comments survive cloneNode but innerHTML strips them — use XMLSerializer workaround
+  let bodyHtml = clone.innerHTML.trim();
+  // Re-insert comments: replace placeholder text (comments become empty in innerHTML on some browsers)
+  // Safer: serialize via a temporary XML document
+  bodyHtml = bodyHtml.replace(/\[fn:(\d+)(?::(\w+))?\]/g, (_, n, v) => {
+    return v ? `<!--fn:${n}:${v}-->` : `<!--fn:${n}-->`;
+  });
   return `<?xml version='1.0' encoding='UTF-8'?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
   <head>
@@ -1037,7 +1303,7 @@ function serializeToXhtml() {
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
   </head>
   <body>
-${clone.innerHTML.trim()}
+${bodyHtml}
   </body>
 </html>`;
 }
@@ -1071,6 +1337,9 @@ document.getElementById('btn-lt-check').addEventListener('click', checkGrammar);
 
 async function checkGrammar() {
   if (checking || editorMode !== 'text') return;
+  if (fileIsHyphenated) {
+    if (!confirm('This file contains soft hyphens.\n\nGrammar check may produce false positives and miss real errors on hyphenated words.\n\nProceed anyway?')) return;
+  }
   const { text } = buildTextMap();
   if (!text.trim()) return;
   checking = true;
@@ -1080,7 +1349,7 @@ async function checkGrammar() {
   try {
     const res  = await fetch(`${API}/check`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ text, language: document.getElementById('lt-lang').value })
+      body: JSON.stringify({ text, language: document.getElementById('lt-lang').value, project_id: currentProject?.id || '' })
     });
     const data = await res.json();
     if (data.error) { setEditorStatus('⚠ ' + data.error, 'err'); return; }
@@ -1102,6 +1371,9 @@ function applyLtMarks(matches) {
   if (!matches.length) return;
   [...matches].sort((a,b)=>a.offset-b.offset).forEach((m,idx) => {
     const s=m.offset, e=s+m.length;
+    // Store the surface text on the match for the ignore button
+    const { text: fullText } = buildTextMap();
+    m._surface = fullText.slice(s, e);
     const cat=(m.rule?.category?.id||'').toUpperCase(), it=m.rule?.issueType||'';
     const cls=(cat==='TYPOS'||cat==='SPELLING'||it==='misspelling')?'spell':(cat==='STYLE'||cat==='REDUNDANCY')?'style':'grammar';
     const { nodes } = buildTextMap();
@@ -1141,6 +1413,11 @@ function showLtPopover(span, match) {
     btn.addEventListener('click', ex => { ex.stopPropagation(); applyLtFix(match,r.value); hideLtPopover(); });
     box.appendChild(btn);
   });
+  // Show ignore button — store the matched surface text on the button
+  const ignBtn = document.getElementById('pop-ignore-btn');
+  const surface = match._surface || '';
+  ignBtn.style.display = surface ? '' : 'none';
+  ignBtn.textContent = `⊘ Ignore "${surface}" for this project`;
   const pop = document.getElementById('lt-popover'); pop.style.display='block';
   const rect=span.getBoundingClientRect(), pw=280, ph=pop.offsetHeight||100;
   let left=rect.left, top=rect.bottom+8, above=false;
@@ -1183,7 +1460,6 @@ function escHtml(s) {
 
 // ── Font size control ────────────────────────────────────────────────────────
 const FS_KEY = 'bp:fs-content';
-
 const MONACO_FS_KEY = 'bp:fs-monaco';
 const MONACO_FS_DEFAULT = 13;
 
@@ -1222,15 +1498,32 @@ updateMonacoFsLabel(parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_D
 let buildConfig   = null;
 let buildProfile  = 'digital';
 
+const BUILD_DEFAULTS = {
+  digital: {
+    front_matter: [
+      { id: 'cover_digital', label: 'Cover (digital)', type: 'titlepage', enabled: true },
+      { id: 'credits_digital', label: 'Credits',        type: 'credits',   enabled: true },
+    ],
+    back_matter: [],
+  },
+  print: {
+    front_matter: [
+      { id: 'title_only',         label: 'Title only page',   type: 'title_only', enabled: true },
+      { id: 'credits_print',      label: 'Credits',           type: 'credits',    enabled: true },
+      { id: 'inside_cover_print', label: 'Inside cover',      type: 'titlepage',  enabled: true },
+      { id: 'taula',              label: 'Table of contents', type: 'taula',      enabled: true },
+    ],
+    back_matter: [],
+  },
+};
+
 function setBuildProfile(profile) {
   buildProfile = profile;
   document.getElementById('build-tab-digital').classList.toggle('active', profile === 'digital');
   document.getElementById('build-tab-print').classList.toggle('active',   profile === 'print');
   document.getElementById('build-profile-badge').textContent = profile;
-  document.getElementById('build-cover-label').textContent =
-    profile === 'digital' ? 'Digital cover image' : 'Print inside cover image';
-  // Hyphenate only relevant for print
-  document.getElementById('btn-hyphenate').disabled = true; // still stub
+  document.getElementById('btn-hyphenate').disabled = true;
+  document.getElementById('btn-dehyphenate').disabled = true;
   renderBuildPanel();
 }
 
@@ -1239,9 +1532,7 @@ async function loadBuildConfig() {
   try {
     const res = await fetch(`${API}/projects/${currentProject.id}/build-config`);
     buildConfig = await res.json();
-  } catch(e) {
-    buildConfig = null;
-  }
+  } catch(e) { buildConfig = null; }
   renderBuildPanel();
 }
 
@@ -1251,23 +1542,17 @@ function renderBuildPanel() {
       '<div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);padding:0.5rem 0">Select a project first.</div>';
     document.getElementById('build-chapter-list').innerHTML = '';
     document.getElementById('build-back-list').innerHTML = '';
+    document.getElementById('btn-hyphenate').disabled = true;
+    document.getElementById('btn-dehyphenate').disabled = true;
     return;
   }
-
+  document.getElementById('btn-hyphenate').disabled = false;
+  document.getElementById('btn-dehyphenate').disabled = false;
   const prof = buildConfig[buildProfile];
-
-  // Cover
-  const coverKey = buildProfile === 'digital' ? 'digital_cover' : 'print_cover';
-  const coverVal = buildConfig[coverKey] || '';
-  document.getElementById('build-cover-input').value = coverVal;
-  document.getElementById('build-cover-display').textContent = coverVal || 'No cover set';
-
-  // Language / publisher from meta
   if (currentProject) {
     document.getElementById('build-language').value  = currentProject.language  || 'ca';
     document.getElementById('build-publisher').value = currentProject.publisher || 'BonPort';
   }
-
   renderBuildList('build-front-list',   prof.front_matter || [], 'front');
   renderBuildList('build-back-list',    prof.back_matter  || [], 'back');
   renderChapterList('build-chapter-list', prof.chapters   || []);
@@ -1288,8 +1573,9 @@ function renderBuildList(containerId, items, section) {
     div.dataset.idx = idx;
     div.dataset.section = section;
     div.style.cursor = 'pointer';
+    div.draggable = true;
     div.innerHTML = `
-      <span class="bi-handle" title="Drag to reorder">⠿</span>
+      <span class="bi-handle" title="Drag to reorder" style="cursor:grab">⠿</span>
       <span class="bi-type">${escHtml(item.type || 'file')}</span>
       <span class="bi-label" title="${escHtml(item.id || '')}">${escHtml(item.label || item.id || '')}</span>
       <button class="bi-toggle" title="${item.enabled === false ? 'Enable' : 'Disable'}"
@@ -1298,6 +1584,40 @@ function renderBuildList(containerId, items, section) {
         onclick="event.stopPropagation();removeBuildItem('${section}', ${idx})">×</button>
     `;
     div.addEventListener('click', () => previewBuildItem(item));
+
+    // ── Drag-to-reorder ──────────────────────────────────────────────────
+    div.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', idx);
+      setTimeout(() => div.style.opacity = '0.4', 0);
+    });
+    div.addEventListener('dragend', () => {
+      div.style.opacity = '';
+      el.querySelectorAll('.build-item').forEach(d => d.style.borderTop = '');
+    });
+    div.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.querySelectorAll('.build-item').forEach(d => d.style.borderTop = '');
+      div.style.borderTop = '2px solid var(--accent)';
+    });
+    div.addEventListener('dragleave', () => {
+      div.style.borderTop = '';
+    });
+    div.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      div.style.borderTop = '';
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx   = idx;
+      if (fromIdx === toIdx) return;
+      const key  = section === 'front' ? 'front_matter' : 'back_matter';
+      const arr  = buildConfig[buildProfile][key];
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, moved);
+      saveBuildConfig();
+      renderBuildPanel();
+    });
+
     el.appendChild(div);
   });
 }
@@ -1320,30 +1640,39 @@ function toggleBuildItem(section, idx) {
   const key  = section === 'front' ? 'front_matter' : 'back_matter';
   const item = buildConfig[buildProfile][key][idx];
   item.enabled = item.enabled === false ? true : false;
-  saveBuildConfig();
-  renderBuildPanel();
+  saveBuildConfig(); renderBuildPanel();
 }
 
 function removeBuildItem(section, idx) {
-  const key  = section === 'front' ? 'front_matter' : 'back_matter';
+  const key = section === 'front' ? 'front_matter' : 'back_matter';
   buildConfig[buildProfile][key].splice(idx, 1);
-  saveBuildConfig();
-  renderBuildPanel();
+  saveBuildConfig(); renderBuildPanel();
 }
 
-function addBuildItem(section) {
+async function addBuildItem(section) {
   const id = prompt('File ID (without .xhtml extension)\ne.g. ded, prologue, epilogue, thanks:');
   if (!id || !id.trim()) return;
-  const label = prompt('Label (display name):', id.trim()) || id.trim();
-  const key   = section === 'front' ? 'front_matter' : 'back_matter';
-  buildConfig[buildProfile][key].push({
-    id:      id.trim(),
-    label:   label.trim(),
-    type:    'custom',
-    enabled: true,
-  });
-  saveBuildConfig();
+  const cleanId  = id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  const label    = prompt('Label (display name):', cleanId) || cleanId;
+  const filename = cleanId + '.xhtml';
+  const key      = section === 'front' ? 'front_matter' : 'back_matter';
+  try {
+    const check = await fetch(`${API}/projects/${currentProject.id}/xhtml/${filename}`);
+    if (!check.ok) {
+      const create = await fetch(`${API}/projects/${currentProject.id}/xhtml/${filename}`, { method: 'POST' });
+      if (!create.ok) {
+        const err = await create.json();
+        if (err.error !== 'File already exists') {
+          showStatus('build-status', '✗ Could not create file: ' + err.error, 'err'); return;
+        }
+      }
+    }
+  } catch(e) { showStatus('build-status', '✗ ' + e.message, 'err'); return; }
+  buildConfig[buildProfile][key].push({ id: cleanId, label: label.trim(), type: 'custom', enabled: true });
+  await saveBuildConfig();
   renderBuildPanel();
+  const item = buildConfig[buildProfile][key].slice(-1)[0];
+  previewBuildItem(item);
 }
 
 async function previewBuildItem(item) {
@@ -1351,14 +1680,9 @@ async function previewBuildItem(item) {
   const filename = (item.id || '') + '.xhtml';
   document.getElementById('build-preview-filename').textContent = filename;
   document.getElementById('btn-build-preview-edit').style.display = '';
+  document.getElementById('btn-build-copy-to-project').style.display = 'none';
   const body = document.getElementById('build-preview-body');
   body.innerHTML = '<span style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">Loading…</span>';
-
-  if (item.type === 'title_only') {
-    body.innerHTML = `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">[Generated from template — title and author filled in at build time]</p>`;
-    document.getElementById('btn-build-preview-edit').style.display = 'none';
-    return;
-  }
 
   try {
     const res = await fetch(`${API}/projects/${currentProject.id}/xhtml/${filename}`);
@@ -1372,10 +1696,12 @@ async function previewBuildItem(item) {
     const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
     const bel    = doc.querySelector('body');
     body.innerHTML = bel ? bel.innerHTML : data.content;
-    const src = data.source === 'global' ? '⚠ global template' : '✓ project file';
+    const src      = data.source === 'global' ? '⚠ global template' : '✓ project file';
     const srcColor = data.source === 'global' ? 'var(--amber)' : 'var(--green)';
     document.getElementById('build-preview-filename').innerHTML =
       `${escHtml(filename)} <span style="color:${srcColor};font-size:0.6rem">${src}</span>`;
+    document.getElementById('btn-build-copy-to-project').style.display =
+      data.source === 'global' ? '' : 'none';
   } catch(e) {
     body.innerHTML = `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--accent)">Error: ${escHtml(e.message)}</p>`;
   }
@@ -1383,38 +1709,26 @@ async function previewBuildItem(item) {
 
 async function showBuildFilePicker(item, body) {
   let files = [];
-  try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/xhtml`);
-    files = await res.json();
-  } catch(e) {}
-
+  try { const res = await fetch(`${API}/projects/${currentProject.id}/xhtml`); files = await res.json(); } catch(e) {}
   const wanted  = (item.id || '') + '.xhtml';
   const matches = files.filter(f => f.includes(item.id || ''));
   const others  = files.filter(f => !matches.includes(f));
-
   let html = `<div style="font-family:var(--mono);font-size:0.72rem;color:var(--accent);margin-bottom:0.75rem">
     ✗ <strong>${escHtml(wanted)}</strong> not found
   </div>
   <div style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.08em">
     Files in xhtml/ — click to assign &amp; preview
   </div>`;
-
   if (matches.length) {
     html += `<div style="font-family:var(--mono);font-size:0.65rem;color:var(--amber);margin-bottom:0.3rem">Likely matches:</div>`;
-    matches.forEach(f => {
-      html += `<div class="build-file-pick" onclick="assignBuildFile('${escHtml(item.id)}', '${escHtml(f)}')">${escHtml(f)}</div>`;
-    });
+    matches.forEach(f => { html += `<div class="build-file-pick" onclick="assignBuildFile('${escHtml(item.id)}', '${escHtml(f)}')">${escHtml(f)}</div>`; });
     html += `<div style="margin-top:0.5rem"></div>`;
   }
   if (others.length) {
     html += `<div style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);margin-bottom:0.3rem">All files:</div>`;
-    others.forEach(f => {
-      html += `<div class="build-file-pick" onclick="assignBuildFile('${escHtml(item.id)}', '${escHtml(f)}')">${escHtml(f)}</div>`;
-    });
+    others.forEach(f => { html += `<div class="build-file-pick" onclick="assignBuildFile('${escHtml(item.id)}', '${escHtml(f)}')">${escHtml(f)}</div>`; });
   }
-  if (!files.length) {
-    html += `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No xhtml files found in this project.</p>`;
-  }
+  if (!files.length) html += `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No xhtml files found in this project.</p>`;
   body.innerHTML = html;
 }
 
@@ -1422,42 +1736,298 @@ async function assignBuildFile(itemId, newFilename) {
   const newId = newFilename.replace(/\.xhtml$/, '');
   ['front_matter', 'back_matter'].forEach(key => {
     (buildConfig[buildProfile][key] || []).forEach(item => {
-      if (item.id === itemId) {
-        item.id    = newId;
-        item.label = item.label === itemId ? newId : item.label;
-      }
+      if (item.id === itemId) { item.id = newId; item.label = item.label === itemId ? newId : item.label; }
     });
   });
-  await saveBuildConfig();
-  renderBuildPanel();
+  await saveBuildConfig(); renderBuildPanel();
   const item = [...(buildConfig[buildProfile].front_matter || []),
-                ...(buildConfig[buildProfile].back_matter  || [])]
-               .find(i => i.id === newId);
+                ...(buildConfig[buildProfile].back_matter  || [])].find(i => i.id === newId);
   if (item) previewBuildItem(item);
 }
 
 function openBuildItemInEditor() {
   if (!buildPreviewFile) return;
+  const filename = buildPreviewFile + '.xhtml';
   showPanel('editor');
-  // Find and click the matching file in the editor list
   setTimeout(() => {
     const items = document.querySelectorAll('.editor-fileitem');
     for (const el of items) {
-      if (el.title === buildPreviewFile + '.xhtml') {
-        el.click();
-        el.scrollIntoView({ block: 'center' });
-        return;
-      }
+      if (el.title === filename) { el.click(); el.scrollIntoView({ block: 'center' }); return; }
     }
+    loadChapterList().then(() => {
+      setTimeout(() => {
+        document.querySelectorAll('.editor-fileitem').forEach(el => {
+          if (el.title === filename) { el.click(); el.scrollIntoView({ block: 'center' }); }
+        });
+      }, 100);
+    });
   }, 300);
 }
 
-function onBuildCoverInput() {
-  const val    = document.getElementById('build-cover-input').value.trim();
-  const coverKey = buildProfile === 'digital' ? 'digital_cover' : 'print_cover';
-  buildConfig[coverKey] = val;
-  document.getElementById('build-cover-display').textContent = val || 'No cover set';
-  saveBuildConfig();
+async function copyTemplateToProject() {
+  if (!buildPreviewFile) return;
+  const filename = buildPreviewFile + '.xhtml';
+  const res = await fetch(`${API}/projects/${currentProject.id}/xhtml/${filename}`);
+  if (!res.ok) { showStatus('build-status', '✗ Could not read template', 'err'); return; }
+  const data = await res.json();
+  if (data.source === 'project') { showStatus('build-status', 'Already a project file', 'info'); return; }
+  const saveRes = await fetch(`${API}/projects/${currentProject.id}/xhtml/${filename}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ content: data.content }),
+  });
+  if (!saveRes.ok) { showStatus('build-status', '✗ Could not save', 'err'); return; }
+  const item = [...(buildConfig[buildProfile].front_matter || []),
+                ...(buildConfig[buildProfile].back_matter  || [])].find(i => i.id === buildPreviewFile);
+  if (item) previewBuildItem(item);
+  document.getElementById('btn-build-copy-to-project').style.display = 'none';
+  showStatus('build-status', `✓ ${filename} copied to project — you can now edit it`, 'ok');
+}
+
+// ── Footnote manager ──────────────────────────────────────────────────────────
+let projectFootnotes = [];
+let projectFnVariants = [];   // e.g. ['one', 'two'] — 'def' is always implicit
+let selectedFnVariant = 'def';  // active variant in insert dialog
+
+async function loadFootnotes() {
+  if (!currentProject) return;
+  const res = await fetch(`${API}/projects/${currentProject.id}/footnotes`);
+  if (!res.ok) return;
+  const data = await res.json();
+  projectFootnotes = data.footnotes || [];
+  // Also load variants from build-config if not already cached
+  if (!buildConfig) {
+    try {
+      const bcRes = await fetch(`${API}/projects/${currentProject.id}/build-config`);
+      buildConfig = await bcRes.json();
+    } catch(e) { buildConfig = null; }
+  }
+  projectFnVariants = (buildConfig && buildConfig.fn_variants) || [];
+  renderFnVariants();
+  updateFootnoteUI();
+}
+
+function renderFnVariants() {
+  const el = document.getElementById('fn-variants-list');
+  if (!el) return;
+  el.innerHTML = '';
+  projectFnVariants.forEach(code => {
+    const tag = document.createElement('span');
+    tag.style.cssText = 'display:inline-flex;align-items:center;gap:0.3rem;' +
+      'background:var(--surface2);border:1px solid var(--border2);border-radius:3px;' +
+      'padding:0.15rem 0.5rem;font-family:var(--mono);font-size:0.75rem;color:var(--text2)';
+    tag.innerHTML = `${code} <span style="cursor:pointer;color:var(--text3)" onclick="removeFnVariant('${code}')" title="Remove">✕</span>`;
+    el.appendChild(tag);
+  });
+}
+
+async function addFnVariant() {
+  const input = document.getElementById('fn-variant-input');
+  const code  = input.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!code || code === 'def' || projectFnVariants.includes(code)) { input.value = ''; return; }
+  projectFnVariants.push(code);
+  await saveFnVariants();
+  renderFnVariants();
+  input.value = '';
+}
+
+async function removeFnVariant(code) {
+  projectFnVariants = projectFnVariants.filter(c => c !== code);
+  await saveFnVariants();
+  renderFnVariants();
+}
+
+async function saveFnVariants() {
+  if (!currentProject || !buildConfig) return;
+  buildConfig.fn_variants = projectFnVariants;
+  await saveBuildConfig();
+}
+
+function updateFootnoteUI() {
+  const hasFootnotes = projectFootnotes.length > 0;
+  // Build panel: toggle collapsed/expanded
+  const collapsed = document.getElementById('fn-card-collapsed');
+  const expanded  = document.getElementById('fn-card-expanded');
+  if (collapsed) collapsed.style.display = hasFootnotes ? 'none' : '';
+  if (expanded)  expanded.style.display  = hasFootnotes ? '' : 'none';
+  const status = document.getElementById('footnote-status');
+  if (status) status.textContent = hasFootnotes ? `${projectFootnotes.length} footnotes loaded.` : '';
+  // Editor toolbar: show fn button only when footnotes are loaded
+  const fnBtn = document.getElementById('btn-insert-fn');
+  if (fnBtn) fnBtn.style.display = hasFootnotes ? '' : 'none';
+}
+
+async function uploadFootnotes(input) {
+  if (!input.files.length || !currentProject) return;
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  const res = await fetch(`${API}/projects/${currentProject.id}/footnotes`, {
+    method: 'POST', body: formData
+  });
+  input.value = '';
+  const data = await res.json();
+  if (data.ok) {
+    projectFootnotes = data.footnotes || [];
+    updateFootnoteUI();
+  } else {
+    alert(data.error || 'Upload failed');
+  }
+}
+
+async function deleteFootnotes() {
+  if (!currentProject || !confirm('Remove footnotes from this project?')) return;
+  await fetch(`${API}/projects/${currentProject.id}/footnotes`, { method: 'DELETE' });
+  projectFootnotes = [];
+  updateFootnoteUI();
+}
+
+function showFootnoteInsertDialog() {
+  if (!projectFootnotes.length) {
+    alert('No footnotes loaded. Upload a footnotes file in the Build panel first.');
+    return;
+  }
+  // Save selection before dialog steals focus
+  const sel = window.getSelection();
+  window._savedFnRange = sel && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+
+  // Build variant selector if variants exist
+  selectedFnVariant = 'def';
+  const variantSelector = document.getElementById('fn-variant-selector');
+  const variantButtons  = document.getElementById('fn-variant-buttons');
+  if (projectFnVariants.length > 0) {
+    variantButtons.innerHTML = '';
+    ['def', ...projectFnVariants].forEach(code => {
+      const btn = document.createElement('button');
+      btn.className = code === 'def' ? 'btn active-toggle' : 'btn';
+      btn.style.cssText = 'padding:0.25rem 0.6rem;font-size:0.75rem';
+      btn.textContent = code;
+      btn.onclick = () => {
+        selectedFnVariant = code;
+        variantButtons.querySelectorAll('.btn').forEach(b => {
+          b.className = b.textContent === code ? 'btn active-toggle' : 'btn';
+        });
+      };
+      variantButtons.appendChild(btn);
+    });
+    variantSelector.style.display = '';
+  } else {
+    variantSelector.style.display = 'none';
+  }
+
+  const list = document.getElementById('fn-dialog-list');
+  list.innerHTML = '';
+  projectFootnotes.forEach(fn => {
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:0.35rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.78rem;' +
+      'font-family:var(--mono);border:1px solid transparent';
+    el.innerHTML = `<span style="color:var(--accent);margin-right:0.5rem">(${fn.n})</span>` +
+      `<span style="color:var(--text2)">${fn.text.substring(0, 80)}${fn.text.length > 80 ? '…' : ''}</span>`;
+    el.onmouseover = () => el.style.background = 'var(--surface2)';
+    el.onmouseout  = () => el.style.background = '';
+    el.onclick = () => insertFootnoteRef(fn.n, selectedFnVariant);
+    list.appendChild(el);
+  });
+
+  document.getElementById('fn-dialog').style.display = 'block';
+  document.getElementById('fn-dialog-overlay').style.display = 'block';
+}
+
+function closeFnDialog() {
+  document.getElementById('fn-dialog').style.display = 'none';
+  document.getElementById('fn-dialog-overlay').style.display = 'none';
+}
+
+function insertFootnoteRef(n, variant) {
+  variant = variant || 'def';
+  closeFnDialog();
+  const markerText  = variant === 'def' ? `<!--fn:${n}-->` : `<!--fn:${n}:${variant}-->`;
+  const labelText   = variant === 'def' ? `[fn:${n}]` : `[fn:${n}:${variant}]`;
+  if (editorMode === 'code' && monacoEditor) {
+    const sel = monacoEditor.getSelection();
+    monacoEditor.executeEdits('fn', [{ range: sel, text: markerText }]);
+  } else {
+    const editor = document.getElementById('editor-content');
+    editor.focus();
+    if (window._savedFnRange) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(window._savedFnRange);
+    }
+    const span = document.createElement('span');
+    span.className = 'fn-marker';
+    span.setAttribute('data-fn', n);
+    span.setAttribute('data-variant', variant);
+    span.setAttribute('contenteditable', 'false');
+    span.textContent = labelText;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(span);
+      range.setStartAfter(span);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+  markDirty();
+}
+
+// ── Image manager ─────────────────────────────────────────────────────────────
+async function loadImageList() {
+  if (!currentProject) return;
+  const res  = await fetch(`${API}/projects/${currentProject.id}/images`);
+  if (!res.ok) return;
+  const data = await res.json();
+  renderImageList(data.images || [], data.cover_image || null);
+}
+
+function renderImageList(images, coverImage) {
+  const list = document.getElementById('image-list');
+  if (!list) return;
+  if (!images.length) {
+    list.innerHTML = '<div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No images yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  images.forEach(filename => {
+    const isCover = filename === coverImage;
+    const row = document.createElement('div');
+    row.className = 'image-item';
+    row.innerHTML = `
+      <span class="image-item-name" title="${filename}">${filename}</span>
+      <button class="image-cover-btn ${isCover ? 'is-cover' : ''}"
+        title="${isCover ? 'EPUB cover' : 'Set as EPUB cover'}"
+        onclick="setCoverImage('${filename}', ${isCover})">★</button>
+      <button class="image-del-btn" title="Delete" onclick="deleteImage('${filename}')">✕</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+async function uploadImage(input) {
+  if (!input.files.length || !currentProject) return;
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  const res = await fetch(`${API}/projects/${currentProject.id}/images`, {
+    method: 'POST', body: formData
+  });
+  input.value = '';
+  if (res.ok) loadImageList();
+}
+
+async function deleteImage(filename) {
+  if (!confirm(`Delete ${filename}?`)) return;
+  await fetch(`${API}/projects/${currentProject.id}/images/${filename}`, { method: 'DELETE' });
+  loadImageList();
+}
+
+async function setCoverImage(filename, isAlreadyCover) {
+  const newVal = isAlreadyCover ? null : filename;
+  await fetch(`${API}/projects/${currentProject.id}/cover-image`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ filename: newVal })
+  });
+  loadImageList();
 }
 
 async function saveBuildConfig() {
@@ -1470,11 +2040,20 @@ async function saveBuildConfig() {
   } catch(e) { console.error('saveBuildConfig:', e); }
 }
 
+async function resetBuildConfig() {
+  if (!confirm('Reset front and back matter for this profile to defaults? Chapters are kept. Files on disk are not deleted.')) return;
+  const defaults = BUILD_DEFAULTS[buildProfile];
+  buildConfig[buildProfile].front_matter = JSON.parse(JSON.stringify(defaults.front_matter));
+  buildConfig[buildProfile].back_matter  = JSON.parse(JSON.stringify(defaults.back_matter));
+  await saveBuildConfig();
+  renderBuildPanel();
+  showStatus('build-action-status', '↺ Reset to chapters only', 'info');
+}
+
 async function buildEpub() {
   if (!currentProject) return;
   const btn = document.getElementById('btn-build-epub');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Building…';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Building…';
   showStatus('build-action-status', `Building ${buildProfile} EPUB…`, 'info');
   try {
     const res = await fetch(`${API}/projects/${currentProject.id}/build/epub`, {
@@ -1483,24 +2062,200 @@ async function buildEpub() {
     });
     if (!res.ok) {
       const data = await res.json();
-      showStatus('build-action-status', '✗ ' + (data.error || 'Build failed'), 'err');
-      return;
+      showStatus('build-action-status', '✗ ' + (data.error || 'Build failed'), 'err'); return;
     }
-    // Trigger download
     const blob = await res.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `${currentProject.id}_${buildProfile}.epub`;
-    a.click();
+    a.href = url; a.download = `${currentProject.id}_${buildProfile}.epub`; a.click();
     URL.revokeObjectURL(url);
     showStatus('build-action-status', `✓ ${buildProfile} EPUB ready`, 'ok');
-  } catch(e) {
-    showStatus('build-action-status', '✗ ' + e.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '↓ Build EPUB';
+  } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = '↓ Build EPUB'; }
+}
+
+async function hyphenateChapters() {
+  if (!currentProject) return;
+  if (!confirm('This will insert soft hyphens into all content files for this project. Continue?')) return;
+  const btn = document.getElementById('btn-hyphenate');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Hyphenating…';
+  showStatus('build-action-status', 'Hyphenating chapters…', 'info');
+  try {
+    const res  = await fetch(`${API}/projects/${currentProject.id}/hyphenate`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showStatus('build-action-status', '✗ ' + (data.error || 'Hyphenation failed'), 'err'); return;
+    }
+    const n   = data.processed.length;
+    const err = data.errors.length;
+    if (err) {
+      showStatus('build-action-status',
+        `⚠ ${n} file${n!==1?'s':''} hyphenated, ${err} error${err!==1?'s':''}`, 'err');
+    } else {
+      showStatus('build-action-status', `✓ ${n} file${n!==1?'s':''} hyphenated`, 'ok');
+    }
+  } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = '⟳ Hyphenate chapters'; }
+}
+
+async function dehyphenateChapters() {
+  if (!currentProject) return;
+  if (!confirm('Remove all soft hyphens from content files?')) return;
+  const btn = document.getElementById('btn-dehyphenate');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Removing…';
+  showStatus('build-action-status', 'Removing soft hyphens…', 'info');
+  try {
+    const res  = await fetch(`${API}/projects/${currentProject.id}/dehyphenate`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      showStatus('build-action-status', '✗ ' + (data.error || 'Failed'), 'err'); return;
+    }
+    const n   = data.processed.length;
+    const err = data.errors.length;
+    if (err) {
+      showStatus('build-action-status', `⚠ ${n} file${n!==1?'s':''} cleaned, ${err} error${err!==1?'s':''}`, 'err');
+    } else {
+      showStatus('build-action-status', `✓ ${n} file${n!==1?'s':''} dehyphenated`, 'ok');
+    }
+  } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = '✕ Remove hyphens'; }
+}
+
+function markDirty() {
+  isDirty = true;
+}
+
+// ── Text formatting ───────────────────────────────────────────────────────────
+function applyFormat(tag) {
+  if (editorMode === 'code' && monacoEditor) {
+    // Code mode: wrap selection with tag
+    const sel   = monacoEditor.getSelection();
+    const model = monacoEditor.getModel();
+    if (!sel || sel.isEmpty()) return;
+    const selected = model.getValueInRange(sel);
+    monacoEditor.executeEdits('format', [{
+      range: sel,
+      text: `<${tag}>${selected}</${tag}>`,
+    }]);
+    monacoEditor.focus();
+    return;
   }
+  // Text mode: execCommand then normalise tag
+  // Browser uses <b>/<i> natively for bold/italic execCommand
+  const cmd = tag === 'b' ? 'bold' : 'italic';
+  document.execCommand(cmd, false, null);
+  // execCommand may insert <strong>/<em> in some browsers — normalise to <b>/<i>
+  const editor = document.getElementById('editor-content');
+  editor.querySelectorAll('strong').forEach(el => {
+    const b = document.createElement('b');
+    while (el.firstChild) b.appendChild(el.firstChild);
+    el.replaceWith(b);
+  });
+  editor.querySelectorAll('em').forEach(el => {
+    const i = document.createElement('i');
+    while (el.firstChild) i.appendChild(el.firstChild);
+    el.replaceWith(i);
+  });
+  updateFormatButtons();
+  isDirty = true;
+}
+
+function updateFormatButtons() {
+  if (editorMode !== 'text') {
+    document.getElementById('btn-bold').classList.remove('active');
+    document.getElementById('btn-italic').classList.remove('active');
+    return;
+  }
+  document.getElementById('btn-bold').classList.toggle('active',
+    document.queryCommandState('bold'));
+  document.getElementById('btn-italic').classList.toggle('active',
+    document.queryCommandState('italic'));
+}
+
+document.getElementById('btn-bold').addEventListener('click',   () => applyFormat('b'));
+document.getElementById('btn-italic').addEventListener('click', () => applyFormat('i'));
+
+// Update active state on cursor move / selection change
+document.getElementById('editor-content').addEventListener('keyup',   updateFormatButtons);
+document.getElementById('editor-content').addEventListener('mouseup', updateFormatButtons);
+document.getElementById('editor-content').addEventListener('selectionchange', updateFormatButtons);
+
+// Ctrl+B / Ctrl+I — work in both modes
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.key === 'b') { e.preventDefault(); applyFormat('b'); }
+  if (e.key === 'i') { e.preventDefault(); applyFormat('i'); }
+});
+
+// ── Ignore words ─────────────────────────────────────────────────────────────
+let ignoreWords = [];
+
+async function loadIgnoreWords() {
+  if (!currentProject) return;
+  try {
+    const res = await fetch(`${API}/projects/${currentProject.id}/ignore-words`);
+    ignoreWords = await res.json();
+    renderIgnoreList();
+  } catch(e) { console.error('loadIgnoreWords:', e); }
+}
+
+function renderIgnoreList() {
+  const list = document.getElementById('ignore-list');
+  if (!list) return;
+  if (!ignoreWords.length) {
+    list.innerHTML = '<div class="ignore-empty">No exceptions yet.<br>Click ⊘ in the grammar popover to add words.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  ignoreWords.forEach(word => {
+    const el = document.createElement('div');
+    el.className = 'ignore-item';
+    el.innerHTML = `<span>${escHtml(word)}</span><button class="ignore-del" title="Remove">×</button>`;
+    el.querySelector('.ignore-del').addEventListener('click', () => removeIgnoreWord(word));
+    list.appendChild(el);
+  });
+}
+
+async function ignoreCurrentWord() {
+  const btn = document.getElementById('pop-ignore-btn');
+  // Extract word from button label: ⊘ Ignore "word" for this project
+  const match = btn.textContent.match(/"([^"]+)"/);
+  if (!match) return;
+  const word = match[1];
+  await addIgnoreWord(word);
+  // Remove all marks for this word from the current check
+  ltMatches = ltMatches.filter(m => (m._surface || '').toLowerCase() !== word.toLowerCase());
+  applyLtMarks(ltMatches);
+  const n = ltMatches.length;
+  setEditorStatus(n === 0 ? '✓ All issues resolved' : `${n} issue${n!==1?'s':''} remaining`, n === 0 ? 'ok' : 'warn');
+  hideLtPopover();
+}
+
+async function addIgnoreWord(word) {
+  if (!currentProject) return;
+  try {
+    await fetch(`${API}/projects/${currentProject.id}/ignore-words`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ word }),
+    });
+    await loadIgnoreWords();
+  } catch(e) { console.error('addIgnoreWord:', e); }
+}
+
+async function removeIgnoreWord(word) {
+  if (!currentProject) return;
+  try {
+    await fetch(`${API}/projects/${currentProject.id}/ignore-words/${encodeURIComponent(word)}`, {
+      method: 'DELETE',
+    });
+    await loadIgnoreWords();
+  } catch(e) { console.error('removeIgnoreWord:', e); }
+}
+
+function toggleIgnorePanel() {
+  const panel = document.getElementById('ignore-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) loadIgnoreWords();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

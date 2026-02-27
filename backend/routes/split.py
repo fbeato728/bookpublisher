@@ -7,6 +7,7 @@ from lxml import etree
 split_bp = Blueprint('split', __name__)
 
 PROJECTS_DIR = '/srv/bookpublisher/projects'
+GLOBAL_DIR   = '/srv/bookpublisher/global'
 
 XHTML_TEMPLATE = """<?xml version='1.0' encoding='UTF-8'?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
@@ -177,31 +178,97 @@ def save_chapter(project_id, filename):
 
 GLOBAL_TEMPLATES = '/srv/bookpublisher/global/templates'
 
+CHAPTER_RE = re.compile(r'^\d{4}_')  # chapter files start with 4 digits + underscore
+SKIP_FILES  = {'full.xhtml', 'nav.xhtml'}
+
 @split_bp.route('/api/projects/<project_id>/xhtml', methods=['GET'])
 def list_xhtml_files(project_id):
-    """List all XHTML files in the project xhtml dir."""
+    """List structural (non-chapter) XHTML files in the project xhtml dir."""
     xhtml_dir = os.path.join(PROJECTS_DIR, project_id, 'xhtml')
     if not os.path.exists(xhtml_dir):
         return jsonify([])
-    files = sorted(f for f in os.listdir(xhtml_dir) if f.endswith('.xhtml'))
+    files = sorted(
+        f for f in os.listdir(xhtml_dir)
+        if f.endswith('.xhtml')
+        and f not in SKIP_FILES
+        and not CHAPTER_RE.match(f)
+    )
     return jsonify(files)
+
+BLANK_XHTML_TEMPLATE = """<?xml version='1.0' encoding='UTF-8'?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head>
+    <link rel="stylesheet" href="../styles/main.css" type="text/css"/>
+    <title>{title}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  </head>
+  <body>
+    <p class="normalText"></p>
+  </body>
+</html>"""
+
+@split_bp.route('/api/projects/<project_id>/xhtml/<filename>', methods=['POST'])
+def create_xhtml_file(project_id, filename):
+    """Create a new blank XHTML file in the project xhtml dir."""
+    if not filename.endswith('.xhtml') or '/' in filename or '..' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    path = os.path.join(PROJECTS_DIR, project_id, 'xhtml', filename)
+    if os.path.exists(path):
+        return jsonify({'error': 'File already exists'}), 409
+    title = os.path.splitext(filename)[0]
+    content = BLANK_XHTML_TEMPLATE.format(title=title)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return jsonify({'ok': True, 'filename': filename, 'content': content})
 
 @split_bp.route('/api/projects/<project_id>/xhtml/<filename>', methods=['GET'])
 def get_xhtml_file(project_id, filename):
     """Get any XHTML file — project file first, then global template fallback."""
     if not filename.endswith('.xhtml') or '/' in filename or '..' in filename:
         return jsonify({'error': 'Invalid filename'}), 400
+
+    content = None
+    source  = None
+
     # 1. Project xhtml dir
     path = os.path.join(PROJECTS_DIR, project_id, 'xhtml', filename)
     if os.path.exists(path):
         with open(path, encoding='utf-8') as f:
-            return jsonify({'content': f.read(), 'filename': filename, 'source': 'project'})
-    # 2. Global templates dir
-    tmpl = os.path.join(GLOBAL_TEMPLATES, filename)
-    if os.path.exists(tmpl):
-        with open(tmpl, encoding='utf-8') as f:
-            return jsonify({'content': f.read(), 'filename': filename, 'source': 'global'})
-    return jsonify({'error': 'File not found'}), 404
+            content = f.read()
+        source = 'project'
+    else:
+        # 2. Global templates dir
+        tmpl = os.path.join(GLOBAL_TEMPLATES, filename)
+        if os.path.exists(tmpl):
+            with open(tmpl, encoding='utf-8') as f:
+                content = f.read()
+            source = 'global'
+
+    if content is None:
+        return jsonify({'error': 'File not found'}), 404
+
+    # Fill {{TOKEN}} placeholders for preview using project metadata
+    meta_path = os.path.join(PROJECTS_DIR, project_id, 'meta.json')
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            meta = json.load(f)
+        tokens = {
+            '{{TITLE}}':           meta.get('title', ''),
+            '{{AUTHOR}}':          meta.get('author', ''),
+            '{{COVER_IMAGE}}':     meta.get('digital_cover', ''),
+            '{{FIRST_EDITION}}':   meta.get('first_edition', ''),
+            '{{ORIGINAL_TITLE}}':  meta.get('original_title', meta.get('title', '')),
+            '{{ORIGINAL_YEAR}}':   meta.get('original_year', ''),
+            '{{ORIGINAL_AUTHOR}}': meta.get('original_author', meta.get('author', '')),
+            '{{TRANSLATOR}}':      meta.get('translator', ''),
+            '{{TRANSLATION_YEAR}}':meta.get('translation_year', ''),
+            '{{ISBN}}':            meta.get('isbn', ''),
+            '{{DEPOT_LEGAL}}':     meta.get('depot_legal', ''),
+        }
+        for token, value in tokens.items():
+            content = content.replace(token, value)
+
+    return jsonify({'content': content, 'filename': filename, 'source': source})
 
 
 @split_bp.route('/api/projects/<project_id>/xhtml/<filename>', methods=['PUT'])
@@ -210,6 +277,43 @@ def save_xhtml_file(project_id, filename):
     if not filename.endswith('.xhtml') or '/' in filename or '..' in filename:
         return jsonify({'error': 'Invalid filename'}), 400
     path = os.path.join(PROJECTS_DIR, project_id, 'xhtml', filename)
+    content = request.json.get('content', '')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return jsonify({'ok': True, 'source': 'project'})
+
+
+@split_bp.route('/api/projects/<project_id>/styles/<filename>', methods=['GET'])
+def get_css_file(project_id, filename):
+    """Get a CSS file — project styles dir first, then global fallback."""
+    if not filename.endswith('.css') or '/' in filename or '..' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+
+    # 1. Project styles dir
+    path = os.path.join(PROJECTS_DIR, project_id, 'styles', filename)
+    if os.path.exists(path):
+        with open(path, encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({'content': content, 'filename': filename, 'source': 'project'})
+
+    # 2. Global styles dir
+    global_path = os.path.join(GLOBAL_DIR, 'styles', filename)
+    if os.path.exists(global_path):
+        with open(global_path, encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({'content': content, 'filename': filename, 'source': 'global'})
+
+    return jsonify({'error': 'File not found'}), 404
+
+
+@split_bp.route('/api/projects/<project_id>/styles/<filename>', methods=['PUT'])
+def save_css_file(project_id, filename):
+    """Save a CSS file to the project styles dir."""
+    if not filename.endswith('.css') or '/' in filename or '..' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    styles_dir = os.path.join(PROJECTS_DIR, project_id, 'styles')
+    os.makedirs(styles_dir, exist_ok=True)
+    path = os.path.join(styles_dir, filename)
     content = request.json.get('content', '')
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)

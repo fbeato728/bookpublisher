@@ -98,8 +98,8 @@ def default_build_config(project_id):
     return {
         'digital': {
             'front_matter': [
-                {'id': 'titlepage',  'label': 'Title page (cover)', 'type': 'titlepage',  'enabled': True},
-                {'id': 'credits_1', 'label': 'Credits',             'type': 'credits',    'enabled': True},
+                {'id': 'cover_digital',  'label': 'Cover (digital)', 'type': 'titlepage',  'enabled': True},
+                {'id': 'credits_digital', 'label': 'Credits',     'type': 'credits',    'enabled': True},
             ],
             'chapters': [{'filename': c['filename'], 'name': c['name'], 'type': c['type']} for c in chapters],
             'back_matter': [],
@@ -107,15 +107,13 @@ def default_build_config(project_id):
         'print': {
             'front_matter': [
                 {'id': 'title_only',        'label': 'Title only page',   'type': 'title_only',   'enabled': True},
-                {'id': 'credits_1',         'label': 'Credits',           'type': 'credits',      'enabled': True},
-                {'id': 'titlePageContent',  'label': 'Inside cover',      'type': 'titlepage',    'enabled': True},
+                {'id': 'credits_print',   'label': 'Credits',           'type': 'credits',      'enabled': True},
+                {'id': 'inside_cover_print',  'label': 'Inside cover (print)', 'type': 'titlepage',  'enabled': True},
                 {'id': 'taula',             'label': 'Table of contents', 'type': 'taula',        'enabled': True},
             ],
             'chapters': [{'filename': c['filename'], 'name': c['name'], 'type': c['type']} for c in chapters],
             'back_matter': [],
         },
-        'digital_cover': '',
-        'print_cover':   '',
     }
 
 def save_build_config(project_id, config):
@@ -134,11 +132,39 @@ def get_project_file(project_id, subdir, filename):
     return None
 
 def read_xhtml_file(project_id, filename):
+    """Read xhtml file — project first, then global templates.
+    Fallback: credits_digital/print.xhtml → credits.xhtml for existing projects."""
     path = os.path.join(PROJECTS_DIR, project_id, 'xhtml', filename)
     if os.path.exists(path):
         with open(path, encoding='utf-8') as f:
             return f.read()
+    tmpl = os.path.join(GLOBAL_TEMPLATES, filename)
+    if os.path.exists(tmpl):
+        with open(tmpl, encoding='utf-8') as f:
+            return f.read()
+    # Fallback for existing projects that only have credits.xhtml
+    if filename in ('credits_digital.xhtml', 'credits_print.xhtml'):
+        return read_xhtml_file(project_id, 'credits.xhtml')
     return None
+
+def fill_template(content, meta, cover_img=''):
+    """Replace {{TOKEN}} placeholders with project metadata."""
+    replacements = {
+        '{{TITLE}}':          meta.get('title', ''),
+        '{{AUTHOR}}':         meta.get('author', ''),
+        '{{COVER_IMAGE}}':    cover_img,
+        '{{FIRST_EDITION}}':  meta.get('first_edition', ''),
+        '{{ORIGINAL_TITLE}}': meta.get('original_title', meta.get('title', '')),
+        '{{ORIGINAL_YEAR}}':  meta.get('original_year', ''),
+        '{{ORIGINAL_AUTHOR}}':meta.get('original_author', meta.get('author', '')),
+        '{{TRANSLATOR}}':     meta.get('translator', ''),
+        '{{TRANSLATION_YEAR}}': meta.get('translation_year', ''),
+        '{{ISBN}}':           meta.get('isbn', ''),
+        '{{DEPOT_LEGAL}}':    meta.get('depot_legal', ''),
+    }
+    for token, value in replacements.items():
+        content = content.replace(token, value)
+    return content
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -217,34 +243,65 @@ def assemble_epub(project_id, meta, config, profile):
     xhtml_dir = os.path.join(PROJECTS_DIR, project_id, 'xhtml')
 
     # ── Determine CSS set ─────────────────────────────────────────────────────
-    if is_print:
-        css_files = ['main.css', 'credits.css', 'fonts.css', 'book_big_title.css', 'taula.css']
-    else:
-        css_files = ['main.css', 'credits.css']
+    # main.css inside the EPUB always maps to either digital.css or print.css
+    # (XHTML files link to ../styles/main.css — name is fixed inside EPUB)
+    main_css_name = 'print.css' if is_print else 'digital.css'
+    main_css_src  = get_project_file(project_id, 'styles', main_css_name)
+    if main_css_src:
+        styles_needed['main.css'] = main_css_src   # packaged as main.css inside EPUB
 
-    for css in css_files:
-        src = get_project_file(project_id, 'styles', css)
-        if src:
-            styles_needed[css] = src
+    # credits.css — same pattern as main.css, pick profile version, package as credits.css
+    credits_css_name = 'print-credits.css' if is_print else 'digital-credits.css'
+    credits_css_src  = get_project_file(project_id, 'styles', credits_css_name)
+    if credits_css_src:
+        styles_needed['credits.css'] = credits_css_src
+
+    # Print-only extras
+    if is_print:
+        for css in ['book_big_title.css', 'taula.css']:
+            src = get_project_file(project_id, 'styles', css)
+            if src:
+                styles_needed[css] = src
 
     # ── Determine font set (print only) ───────────────────────────────────────
+    # Scan global/fonts then project/fonts — project file wins over global for same name.
     if is_print:
-        for font in ['Adobe_Garamond_Pro_Regular.ttf',
-                     'Adobe_Garamond_Pro_Italic.ttf',
-                     'Adobe_Garamond_Pro_Semibold.otf']:
-            src = get_project_file(project_id, 'fonts', font)
-            if src:
-                fonts_needed[font] = src
+        font_exts = {'.ttf', '.otf', '.woff', '.woff2'}
+        for fonts_dir in [GLOBAL_FONTS,
+                          os.path.join(PROJECTS_DIR, project_id, 'fonts')]:
+            if not os.path.isdir(fonts_dir):
+                continue
+            for fname in sorted(os.listdir(fonts_dir)):
+                if os.path.splitext(fname)[1].lower() in font_exts:
+                    fonts_needed[fname] = os.path.join(fonts_dir, fname)
 
-    # ── Collect cover image ───────────────────────────────────────────────────
-    if is_print:
-        cover_img = config.get('print_cover') or 'flat_inside_cover.jpg'
-    else:
-        cover_img = config.get('digital_cover') or 'cover-epub-color.jpg'
+    # ── Collect cover image (from meta.json, EPUB only) ─────────────────────
+    cover_img = meta.get('cover_image', '') if not is_print else ''
+    # ── Load footnotes ────────────────────────────────────────────────────────
+    import json as _json
+    _fn_path = os.path.join(PROJECTS_DIR, project_id, 'footnotes.json')
+    footnotes = {}  # {int: str}
+    if os.path.exists(_fn_path):
+        with open(_fn_path, encoding='utf-8') as _f:
+            footnotes = {int(k): v for k, v in _json.load(_f).items()}
 
-    cover_src = get_project_file(project_id, 'images', cover_img)
-    if cover_src:
-        images_needed[cover_img] = cover_src
+    def apply_footnotes_print(content):
+        """Replace <!--fn:N--> or <!--fn:N:variant--> with Prince inline span."""
+        def _repl(m):
+            n       = int(m.group(1))
+            variant = m.group(2) if m.group(2) else 'def'
+            text    = footnotes.get(n, '[footnote %d not found]' % n)
+            return '<span class="fn %s">%s</span>' % (variant, text)
+        return re.sub(r'<!--fn:(\d+)(?::(\w+))?-->', _repl, content)
+
+    def apply_footnotes_digital(content):
+        """Replace <!--fn:N--> or <!--fn:N:variant--> with EPUB noteref link."""
+        def _repl(m):
+            n = int(m.group(1))
+            return ('<a epub:type="noteref" href="../text/footnotes.xhtml#fn%d">'
+                    '<sup>%d</sup></a>') % (n, n)
+        return re.sub(r'<!--fn:(\d+)(?::(\w+))?-->', _repl, content)
+
 
     # ── Collect inline images from all XHTML files ────────────────────────────
     def collect_images_from_xhtml(content):
@@ -294,108 +351,59 @@ def assemble_epub(project_id, meta, config, profile):
             spine_items.append(iid)
             files_to_write[f'text/{bid}.xhtml'] = BLANK_XHTML
 
-    def add_xhtml_from_project(item_type, item_id_hint, filename, properties=None):
-        """Add an XHTML file that lives in the project xhtml dir."""
-        content = read_xhtml_file(project_id, filename + '.xhtml')
+    def add_xhtml_from_project(filename, epub_filename=None, properties=None):
+        """Load xhtml file (project override → global template), fill tokens, add to spine."""
+        if epub_filename is None:
+            epub_filename = filename
+        content = read_xhtml_file(project_id, filename)
         if content is None:
-            # Try global templates
-            tmpl = os.path.join(GLOBAL_TEMPLATES, filename + '.xhtml')
-            if os.path.exists(tmpl):
-                with open(tmpl, encoding='utf-8') as f:
-                    content = f.read()
-        if content is None:
-            content = f'<html xmlns="http://www.w3.org/1999/xhtml"><body><p>{filename}</p></body></html>'
+            content = f"""<?xml version='1.0' encoding='UTF-8'?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head><link rel="stylesheet" href="../styles/main.css" type="text/css"/>
+  <title>{filename}</title></head>
+  <body><p class="normalText"></p></body>
+</html>"""
+        content = fill_template(content, meta, cover_img)
         iid = next_id()
-        epub_path = f'text/{filename}.xhtml'
-        add_xhtml_item(iid, filename + '.xhtml', content, properties=properties)
-        files_to_write[epub_path] = content
+        manifest_items.append({'id': iid, 'href': f'text/{epub_filename}',
+                               'media_type': 'application/xhtml+xml', 'properties': properties})
+        spine_items.append(iid)
+        collect_images_from_xhtml(content)
+        files_to_write[f'text/{epub_filename}'] = content
         return iid
 
     if is_print:
-        # Print front matter: 2 blanks, title_only, credits, titlePageContent, blank, taula, ded, blanks
         add_blank(2)
-
         for fm in front_matter:
             ftype = fm.get('type')
             fid   = fm.get('id')
-
             if ftype == 'title_only':
-                # Global template, fill in title/author
-                tmpl_path = os.path.join(GLOBAL_TEMPLATES, 'title_only.xhtml')
-                if os.path.exists(tmpl_path):
-                    with open(tmpl_path, encoding='utf-8') as f:
-                        content = f.read()
-                    content = content.replace('{{TITLE}}', title).replace('{{AUTHOR}}', author)
-                else:
-                    content = f"""<?xml version='1.0' encoding='UTF-8'?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-  <head><link rel="stylesheet" href="../styles/book_big_title.css" type="text/css"/>
-  <title>{title}</title></head>
-  <body><div class="_idGenObjectStyleOverride-1"><p class="bigtitle">{title}</p></div></body>
-</html>"""
-                iid = next_id()
-                manifest_items.append({'id': iid, 'href': 'text/title_only.xhtml',
-                                       'media_type': 'application/xhtml+xml', 'properties': None})
-                spine_items.append(iid)
-                files_to_write['text/title_only.xhtml'] = content
-
+                add_xhtml_from_project('title_only.xhtml')
             elif ftype == 'credits':
-                add_xhtml_from_project('credits', fid, fid or 'credits_1')
-
+                add_xhtml_from_project(f"{fid}.xhtml")
             elif ftype == 'titlepage':
-                # Inside cover image page for print
-                content = TITLEPAGE_XHTML.format(
-                    title=title,
-                    cover_image=cover_img,
-                )
-                iid = next_id()
-                manifest_items.append({'id': iid, 'href': 'text/titlePageContent.xhtml',
-                                       'media_type': 'application/xhtml+xml', 'properties': 'scripted'})
-                spine_items.append(iid)
-                files_to_write['text/titlePageContent.xhtml'] = content
+                add_xhtml_from_project('inside_cover_print.xhtml', properties='scripted')
                 add_blank(1)
-
             elif ftype == 'taula':
-                add_xhtml_from_project('taula', fid, 'taula', properties='scripted')
-
-            elif ftype == 'custom':
-                add_xhtml_from_project('custom', fid, fid)
-
-        # Dedication and similar optional files come before chapters
-        # (they appear in front_matter list if added by user)
+                add_xhtml_from_project('taula.xhtml', properties='scripted')
+            else:
+                # custom / ded / prologue / etc
+                add_xhtml_from_project(f"{fid}.xhtml")
 
     else:
-        # Digital front matter
         for fm in front_matter:
             ftype = fm.get('type')
             fid   = fm.get('id')
-
             if ftype == 'titlepage':
-                # Digital: BW inside cover image
-                content = f"""<?xml version='1.0' encoding='UTF-8'?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-  <head><link rel="stylesheet" href="../styles/main.css" type="text/css"/>
-  <title>{title}</title>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-  </head>
-  <body>
-    <img src="../images/{cover_img}" alt="{title}" class="full"/>
-  </body>
-</html>"""
-                iid = next_id()
-                manifest_items.append({'id': 'titlepage', 'href': 'text/titlepage.xhtml',
-                                       'media_type': 'application/xhtml+xml', 'properties': None})
-                spine_items.append('titlepage')
-                files_to_write['text/titlepage.xhtml'] = content
-
+                add_xhtml_from_project('cover_digital.xhtml')
             elif ftype == 'credits':
-                add_xhtml_from_project('credits', fid, fid or 'credits_1')
-
-            elif ftype == 'custom':
-                add_xhtml_from_project('custom', fid, fid)
+                add_xhtml_from_project(f"{fid}.xhtml")
+            else:
+                add_xhtml_from_project(f"{fid}.xhtml")
 
     # ── Chapters ──────────────────────────────────────────────────────────────
     nav_entries = []  # (filename, name) for nav/toc
+    digital_fn_refs = []  # ordered list of fn numbers referenced (digital only)
 
     for ch in chapters:
         fname   = ch['filename']
@@ -403,6 +411,14 @@ def assemble_epub(project_id, meta, config, profile):
         content = read_xhtml_file(project_id, fname)
         if content is None:
             continue
+        if is_print:
+            content = apply_footnotes_print(content)
+        else:
+            for m in re.finditer(r'<!--fn:(\d+)(?::(\w+))?-->', content):
+                n = int(m.group(1))
+                if n not in digital_fn_refs:
+                    digital_fn_refs.append(n)
+            content = apply_footnotes_digital(content)
         iid = next_id()
         manifest_items.append({'id': iid, 'href': f'text/{fname}',
                                 'media_type': 'application/xhtml+xml', 'properties': None})
@@ -410,6 +426,38 @@ def assemble_epub(project_id, meta, config, profile):
         files_to_write[f'text/{fname}'] = content
         collect_images_from_xhtml(content)
         nav_entries.append((fname, ch_name))
+
+    # ── footnotes.xhtml (digital only) ───────────────────────────────────────
+    if not is_print and digital_fn_refs and footnotes:
+        fn_items = ''
+        for n in digital_fn_refs:
+            text = footnotes.get(n, '')
+            fn_items += (
+                '      <li id="fn%d" epub:type="footnote">\n'
+                '        <p class="note"><a href="#fn%d-ref">%d.</a> %s</p>\n'
+                '      </li>\n'
+            ) % (n, n, n, text)
+        fn_xhtml = (
+            "<?xml version='1.0' encoding='UTF-8'?>\n"
+            '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
+            '  <head>\n'
+            '    <link rel="stylesheet" href="../styles/main.css" type="text/css"/>\n'
+            '    <title>Notes</title>\n'
+            '    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n'
+            '  </head>\n'
+            '  <body>\n'
+            '    <p class="notesTitle">Notes</p>\n'
+            '    <ol>\n'
+            + fn_items +
+            '    </ol>\n'
+            '  </body>\n'
+            '</html>'
+        )
+        fn_iid = next_id()
+        manifest_items.append({'id': fn_iid, 'href': 'text/footnotes.xhtml',
+                                'media_type': 'application/xhtml+xml', 'properties': None})
+        spine_items.append(fn_iid)
+        files_to_write['text/footnotes.xhtml'] = fn_xhtml
 
     # ── Back matter ───────────────────────────────────────────────────────────
     for bm in back_matter:
@@ -466,7 +514,7 @@ def assemble_epub(project_id, meta, config, profile):
     for i, img in enumerate(images_needed):
         ext  = img.rsplit('.', 1)[-1].lower()
         mime = img_mime.get(ext, 'image/jpeg')
-        props = 'cover-image' if (not is_print and img == cover_img) else None
+        props = 'cover-image' if (not is_print and cover_img and img == cover_img) else None
         iid   = 'cover' if (not is_print and img == cover_img) else f'img{i}'
         manifest_items.append({'id': iid, 'href': f'images/{img}',
                                'media_type': mime, 'properties': props})

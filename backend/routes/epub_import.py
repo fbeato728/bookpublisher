@@ -1,4 +1,5 @@
 import os
+import shutil
 import json
 import re
 import zipfile
@@ -55,6 +56,15 @@ def import_epub():
 
     for subdir in ['original', 'xhtml', 'images', 'styles', 'fonts', 'epub', 'print', 'pdf']:
         os.makedirs(os.path.join(project_dir, subdir), exist_ok=True)
+
+    # Copy global CSS files into project so they can be edited per-project
+    styles_dir = os.path.join(project_dir, 'styles')
+    for css_file in ['digital.css', 'print.css', 'digital-credits.css', 'print-credits.css',
+                       'book_big_title.css', 'taula.css']:
+        global_css = os.path.join(GLOBAL_DIR, 'styles', css_file)
+        project_css = os.path.join(styles_dir, css_file)
+        if os.path.exists(global_css) and not os.path.exists(project_css):
+            shutil.copy2(global_css, project_css)
 
     original_path = os.path.join(project_dir, 'original', file.filename)
     file.save(original_path)
