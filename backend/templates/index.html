@@ -858,7 +858,7 @@ async function loadFullXhtml() {
       splitElements.push(wrapper);
       idx++;
     }
-    if (splitProjectId !== currentProject.id || !splitSavedData.length) {
+    if (splitProjectId !== currentProject.id) {
       try {
         const stored = localStorage.getItem('splits:' + currentProject.id);
         splitSavedData = stored ? JSON.parse(stored) : [];
@@ -973,7 +973,7 @@ async function applySplits() {
     if (!res.ok) { showStatus('split-status', '✗ ' + (data.error || 'Failed'), 'err'); return; }
     showStatus('split-status', `✓ ${data.saved.length} files created`, 'ok');
     currentProject.status = 'split'; currentProject.chapters = data.saved;
-    syncSavedData();
+    clearAllSplits();
     setTimeout(() => showPanel('editor'), 800);
   } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }
   finally { btn.disabled = false; btn.textContent = '✂ Apply splits'; }
