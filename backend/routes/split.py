@@ -86,6 +86,8 @@ def apply_splits(project_id):
     ns = {'x': 'http://www.w3.org/1999/xhtml'}
     body = tree.find('.//x:body', ns)
     if body is None:
+        body = tree.find('.//body')
+    if body is None:
         return jsonify({'error': 'Could not parse body from full.xhtml'}), 500
 
     # Get all direct children of body as a list
@@ -160,6 +162,26 @@ def get_chapter(project_id, filename):
     with open(path, encoding='utf-8') as f:
         content = f.read()
     return jsonify({'content': content, 'filename': filename})
+
+
+@split_bp.route('/api/projects/<project_id>/chapters/<filename>', methods=['DELETE'])
+def delete_chapter(project_id, filename):
+    """Delete a chapter file and remove it from meta.json."""
+    if not filename.endswith('.xhtml') or '/' in filename or '..' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    path = os.path.join(PROJECTS_DIR, project_id, 'xhtml', filename)
+    if not os.path.exists(path):
+        return jsonify({'error': 'File not found'}), 404
+    os.remove(path)
+    # Remove from meta.json chapter list
+    meta_path = os.path.join(PROJECTS_DIR, project_id, 'meta.json')
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            meta = json.load(f)
+        meta['chapters'] = [c for c in meta.get('chapters', []) if c.get('filename') != filename]
+        with open(meta_path, 'w') as f:
+            json.dump(meta, f, indent=2)
+    return jsonify({'ok': True})
 
 
 @split_bp.route('/api/projects/<project_id>/chapters/<filename>', methods=['PUT'])

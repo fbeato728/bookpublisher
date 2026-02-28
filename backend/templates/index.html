@@ -370,7 +370,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 44</span></div>
+    <div class="logo">Book<span>Publisher 51</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -471,9 +471,10 @@ html, body {
             <div class="split-list-empty">No splits yet.<br>Click in the text to add one.</div>
           </div>
           <div class="split-sidebar-foot">
+            <div id="split-existing-banner" style="display:none;font-family:var(--mono);font-size:0.72rem;color:var(--amber);background:rgba(181,130,10,0.08);border:1px solid rgba(181,130,10,0.3);border-radius:3px;padding:0.4rem 0.6rem;display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.25rem"></div>
             <div id="split-status"></div>
             <button class="btn primary" id="btn-apply-splits">✂ Apply splits</button>
-            <button class="btn danger" id="btn-clear-splits">Clear all</button>
+            <button class="btn danger" id="btn-clear-splits">Clear markers</button>
           </div>
         </div>
       </div>
@@ -712,7 +713,7 @@ function showPanel(name) {
   document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
   document.getElementById('fs-control').style.display =
     (name === 'split' || name === 'editor') ? 'flex' : 'none';
-  if (name === 'build'  && currentProject) { loadBuildConfig(); loadImageList(); loadFootnotes(); }
+  if (name === 'build' && currentProject) { buildConfig = null; loadBuildConfig(); loadImageList(); loadFootnotes(); }
   if (name === 'split'  && currentProject) loadFullXhtml();
   if (name === 'editor' && currentProject) { loadChapterList(); loadIgnoreWords(); loadFootnotes(); }
   if (monacoEditor) monacoEditor.layout();
@@ -748,7 +749,12 @@ function openProject(p) {
   document.querySelectorAll('.project-item').forEach(el =>
     el.classList.toggle('active', el.title === p.id)
   );
-  showPanel(p.status === 'split' ? 'editor' : 'split');
+  // Route to Editor if chapters already exist, otherwise Split
+  //fetch(`${API}/projects/${p.id}/chapters`)
+  //  .then(r => r.json())
+  //  .then(chapters => showPanel(chapters.length ? 'editor' : 'split'))
+  //  .catch(() => showPanel('split'));
+  showPanel('split');
 }
 
 // ── Upload mode tabs ─────────────────────────────────────────────────────────
@@ -837,6 +843,23 @@ async function loadFullXhtml() {
   area.innerHTML = '<div style="font-family:var(--mono);font-size:0.78rem;color:var(--text3);padding:2rem 0">Loading manuscript…</div>';
   splitElements = []; splitMarkers = [];
   updateSplitList();
+  showStatus('split-status', '', '');
+
+  // Check for existing chapter files and show warning banner
+  try {
+    const chRes = await fetch(`${API}/projects/${currentProject.id}/chapters`);
+    const existingChapters = chRes.ok ? await chRes.json() : [];
+    const banner = document.getElementById('split-existing-banner');
+    if (existingChapters.length) {
+      banner.style.display = '';
+      banner.innerHTML = `<span>⚠ ${existingChapters.length} chapter file${existingChapters.length !== 1 ? 's' : ''} already exist — applying new splits will replace them.</span>
+        <button class="btn danger" style="padding:0.2rem 0.6rem;font-size:0.72rem" onclick="deleteAllChapterFiles()">✕ Delete chapter files</button>`;
+    } else {
+      banner.style.display = 'none';
+      banner.innerHTML = '';
+    }
+  } catch(e) { /* ignore */ }
+
   try {
     const res  = await fetch(`${API}/projects/${currentProject.id}/full-xhtml`);
     const data = await res.json();
@@ -952,6 +975,32 @@ function clearAllSplits() {
   updateSplitList();
 }
 
+async function deleteAllChapterFiles() {
+  if (!currentProject) return;
+  if (!confirm('Delete all chapter files from disk for this project? This cannot be undone.')) return;
+  const banner = document.getElementById('split-existing-banner');
+  banner.innerHTML = '<span>Deleting…</span>';
+  try {
+    const chRes = await fetch(`${API}/projects/${currentProject.id}/chapters`);
+    if (!chRes.ok) { showStatus('split-status', '✗ Could not load chapter list', 'err'); return; }
+    const chapters = await chRes.json();
+    let errors = 0;
+    for (const ch of chapters) {
+      const del = await fetch(`${API}/projects/${currentProject.id}/chapters/${ch.filename}`, { method: 'DELETE' });
+      if (!del.ok) errors++;
+    }
+    if (errors) {
+      showStatus('split-status', `⚠ ${errors} file${errors !== 1 ? 's' : ''} could not be deleted`, 'err');
+    } else {
+      showStatus('split-status', `✓ ${chapters.length} chapter file${chapters.length !== 1 ? 's' : ''} deleted`, 'ok');
+    }
+    banner.style.display = 'none';
+    banner.innerHTML = '';
+    buildConfig = null; // force Build panel to reload
+    loadBuildConfig();
+  } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }
+}
+
 async function applySplits() {
   if (!splitMarkers.length) { showStatus('split-status', 'Add at least one split point first', 'err'); return; }
   const sorted = [...splitMarkers].sort((a,b) => a.beforeIndex - b.beforeIndex);
@@ -973,6 +1022,7 @@ async function applySplits() {
     if (!res.ok) { showStatus('split-status', '✗ ' + (data.error || 'Failed'), 'err'); return; }
     showStatus('split-status', `✓ ${data.saved.length} files created`, 'ok');
     currentProject.status = 'split'; currentProject.chapters = data.saved;
+    buildConfig = null; // force Build panel to reload fresh chapter list
     clearAllSplits();
     setTimeout(() => showPanel('editor'), 800);
   } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }
