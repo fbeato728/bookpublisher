@@ -17,7 +17,7 @@ from routes.hyphenate import hyphenate_bp
 app = Flask(__name__,
     template_folder='templates',
     static_folder='static')
-CORS(app)
+CORS(app, origins=["http://localhost:5000", "http://127.0.0.1:5000"])
 app.config['PROJECTS_DIR'] = '/srv/bookpublisher/projects'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.register_blueprint(projects_bp)
