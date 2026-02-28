@@ -197,8 +197,13 @@ html, body {
 
 /* ── Editor panel ── */
 .editor-layout { display: grid; grid-template-columns: 220px 1fr; height: 100%; overflow: hidden; }
+.editor-layout.preview-open { grid-template-columns: 220px 1fr 1fr; }
 .editor-filetree { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
 .editor-filetree-head { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); }
+.preview-pane { display: none; flex-direction: column; border-left: 1px solid var(--border); overflow: hidden; background: #fff; }
+.preview-pane.active { display: flex; }
+.preview-pane-header { padding: 0.35rem 0.75rem; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.preview-pane-body { flex: 1; overflow-y: auto; padding: 2rem 3rem; }
 .editor-filelist { flex: 1; overflow-y: auto; }
 .editor-fileitem { padding: 0.45rem 1rem; cursor: pointer; font-family: var(--mono); font-size: 0.72rem; color: var(--text2); border-left: 3px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 0.1s; }
 .editor-fileitem:hover { background: var(--surface2); color: var(--text); }
@@ -370,7 +375,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 54</span></div>
+    <div class="logo">Book<span>Publisher 55</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -521,6 +526,12 @@ html, body {
             <button class="btn" id="btn-toggle-mode" title="Toggle text / code view">⟨/⟩ Code</button>
             <button class="btn lt-only" id="btn-ignore-panel" onclick="toggleIgnorePanel()" title="Exception words">☰ Exceptions</button>
             <button class="btn primary" id="btn-save-chapter">Save</button>
+            <span class="fmt-sep" id="preview-sep" style="display:none"></span>
+            <select id="preview-css-select" style="display:none;font-family:var(--mono);font-size:0.72rem;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);padding:0.2rem 0.4rem;border-radius:3px" onchange="refreshPreview()">
+              <option value="digital.css">Digital</option>
+              <option value="print.css">Print</option>
+            </select>
+            <button class="btn" id="btn-preview-file" style="display:none" onclick="togglePreviewPane()" title="Toggle preview pane">👁 Preview</button>
           </div>
           <div class="editor-content-area">
             <div class="editor-scroll active" id="editor-scroll">
@@ -534,10 +545,16 @@ html, body {
             <span id="editor-mode-badge" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3)">TEXT</span>
           </div>
         </div>
+        <!-- Preview pane -->
+        <div class="preview-pane" id="preview-pane">
+          <div class="preview-pane-header">
+            <span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);flex:1">Preview</span>
+            <button class="btn danger" style="padding:0.15rem 0.5rem;font-size:0.72rem" onclick="togglePreviewPane()">✕</button>
+          </div>
+          <div class="preview-pane-body" id="preview-pane-body"></div>
+        </div>
       </div>
     </div>
-
-    <!-- Build -->
     <div class="panel" id="panel-build">
       <div class="panel-header">
         <span class="panel-title">Build</span>
@@ -678,6 +695,7 @@ html, body {
 </div>
 <div id="fn-dialog-overlay" style="display:none;position:fixed;inset:0;z-index:999" onclick="closeFnDialog()"></div>
 
+
 <div id="lt-popover">
   <div class="pop-rule" id="pop-rule"></div>
   <div class="pop-msg"  id="pop-msg"></div>
@@ -757,6 +775,7 @@ function openProject(p) {
     splitSavedData = [];
     splitProjectId = null;
     splitMarkers   = [];
+    previewCssCache = {};
   }
   currentProject = p;
   document.getElementById('topbar-project').textContent = p.title || p.id;
@@ -1241,10 +1260,17 @@ async function openChapter(filename, listEl) {
       // Hide text-mode-only controls
       document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
       document.getElementById('btn-toggle-mode').style.display = 'none';
+      document.getElementById('btn-preview-file').style.display = 'none';
+      document.getElementById('preview-sep').style.display = 'none';
+      document.getElementById('preview-css-select').style.display = 'none';
       setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
     } else {
       // Restore toggle button for XHTML files
       document.getElementById('btn-toggle-mode').style.display = '';
+      document.getElementById('btn-preview-file').style.display = '';
+      document.getElementById('preview-sep').style.display = '';
+      document.getElementById('preview-css-select').style.display = '';
+      if (previewVisible) refreshPreview();
       const parser = new DOMParser();
       const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
       const body   = doc.querySelector('body');
@@ -1270,6 +1296,69 @@ async function openChapter(filename, listEl) {
       setEditorStatus('', '');
     }
   } catch(e) { setEditorStatus('Error loading file', 'err'); }
+}
+
+// ── Preview pane ──────────────────────────────────────────────────────────────
+let previewVisible  = false;
+let previewCssCache = {}; // keyed by cssName, stores already-scoped CSS
+
+async function togglePreviewPane() {
+  if (previewVisible) {
+    previewVisible = false;
+    document.getElementById('preview-pane').classList.remove('active');
+    document.getElementById('editor-layout') && document.querySelector('.editor-layout').classList.remove('preview-open');
+    document.querySelector('.editor-layout').classList.remove('preview-open');
+    document.getElementById('btn-preview-file').classList.remove('active-toggle');
+  } else {
+    previewVisible = true;
+    document.querySelector('.editor-layout').classList.add('preview-open');
+    document.getElementById('preview-pane').classList.add('active');
+    document.getElementById('btn-preview-file').classList.add('active-toggle');
+    await refreshPreview();
+  }
+}
+
+async function refreshPreview() {
+  if (!previewVisible || !currentProject || !currentChapterFile) return;
+  const cssName = document.getElementById('preview-css-select').value;
+
+  // Get XHTML — from Monaco if in code mode, from rawXhtml if in text mode
+  let xhtml = '';
+  if (editorMode === 'code' && monacoEditor) {
+    xhtml = monacoEditor.getValue();
+  } else {
+    xhtml = document.getElementById('editor-content').dataset.rawXhtml || '';
+  }
+
+  // Fetch and scope CSS only if not already cached
+  if (!previewCssCache[cssName]) {
+    try {
+      const cssRes = await fetch(`${API}/projects/${currentProject.id}/styles/${cssName}`);
+      const rawCss = cssRes.ok ? (await cssRes.json()).content : '';
+      previewCssCache[cssName] = rawCss
+        ? rawCss.replace(/([^{}]+)\{/g, (match, selector) => {
+            if (selector.trim().startsWith('@')) return match;
+            const scoped = selector.split(',').map(s => `#preview-pane-body ${s.trim()}`).join(', ');
+            return scoped + ' {';
+          })
+        : '';
+    } catch(e) { previewCssCache[cssName] = ''; }
+  }
+
+  // Parse XHTML body
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(xhtml, 'application/xhtml+xml');
+  const body   = doc.querySelector('body');
+  if (!body) { document.getElementById('preview-pane-body').innerHTML = '<p style="color:red;font-family:monospace">Could not parse body</p>'; return; }
+
+  // Inject scoped CSS and render body
+  const pane = document.getElementById('preview-pane-body');
+  const oldStyle = pane.previousSibling;
+  if (oldStyle && oldStyle.tagName === 'STYLE') oldStyle.remove();
+  const styleEl = document.createElement('style');
+  styleEl.textContent = previewCssCache[cssName] || '';
+  pane.parentNode.insertBefore(styleEl, pane);
+  pane.innerHTML = body.innerHTML;
 }
 
 // ── Editor: text/code toggle ──────────────────────────────────────────────────
@@ -1395,7 +1484,12 @@ async function saveChapter() {
       method: 'PUT', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ content: xhtml })
     });
-    if (res.ok) { isDirty = false; setEditorStatus('Saved ✓', 'ok'); }
+    if (res.ok) {
+      isDirty = false;
+      setEditorStatus('Saved ✓', 'ok');
+      if (isCss) delete previewCssCache[currentChapterFile];
+      if (previewVisible) refreshPreview();
+    }
     else setEditorStatus('Save failed', 'err');
   } catch(e) { setEditorStatus('Save failed: ' + e.message, 'err'); }
 }
