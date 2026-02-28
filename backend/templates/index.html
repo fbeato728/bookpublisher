@@ -370,7 +370,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 53</span></div>
+    <div class="logo">Book<span>Publisher 54</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -392,10 +392,11 @@ html, body {
     </div>
     <div class="sidebar-section" id="project-nav" style="display:none">
       <div class="sidebar-label">Current Project</div>
-      <div class="nav-item" data-panel="split"  onclick="showPanel('split')"><span class="icon">✂</span> Split</div>
-      <div class="nav-item" data-panel="editor" onclick="showPanel('editor')"><span class="icon">✎</span> Editor</div>
-      <div class="nav-item" data-panel="build"  onclick="showPanel('build')"><span class="icon">⚙</span> Build</div>
-      <div class="nav-item" data-panel="pdf"    onclick="showPanel('pdf')"><span class="icon">⎙</span> PDF Tools</div>
+      <div class="nav-item" data-panel="overview" onclick="showPanel('overview')"><span class="icon">◉</span> Overview</div>
+      <div class="nav-item" data-panel="split"    onclick="showPanel('split')"><span class="icon">✂</span> Split</div>
+      <div class="nav-item" data-panel="editor"   onclick="showPanel('editor')"><span class="icon">✎</span> Editor</div>
+      <div class="nav-item" data-panel="build"    onclick="showPanel('build')"><span class="icon">⚙</span> Build</div>
+      <div class="nav-item" data-panel="pdf"      onclick="showPanel('pdf')"><span class="icon">⎙</span> PDF Tools</div>
     </div>
     <div class="sidebar-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
       <div class="sidebar-label">Projects</div>
@@ -640,6 +641,19 @@ html, body {
       </div>
     </div>
 
+    <!-- Overview -->
+    <div class="panel" id="panel-overview">
+      <div class="panel-header"><span class="panel-title">Project Overview</span></div>
+      <div class="panel-body">
+        <div id="overview-status" style="margin-bottom:1.5rem"></div>
+        <div id="overview-info" style="font-family:var(--mono);font-size:0.78rem;line-height:2;color:var(--text2);margin-bottom:2rem"></div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+          <button class="btn danger" onclick="resetProject()">↺ Reset to full.xhtml</button>
+          <button class="btn danger" id="btn-delete-project" onclick="deleteProject()">✕ Delete project</button>
+        </div>
+      </div>
+    </div>
+
     <!-- PDF Tools -->
     <div class="panel" id="panel-pdf">
       <div class="panel-header"><span class="panel-title">PDF Tools</span></div>
@@ -713,6 +727,7 @@ function showPanel(name) {
   document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
   document.getElementById('fs-control').style.display =
     (name === 'split' || name === 'editor') ? 'flex' : 'none';
+  if (name === 'overview' && currentProject) loadOverview();
   if (name === 'build' && currentProject) { buildConfig = null; loadBuildConfig(); loadImageList(); loadFootnotes(); }
   if (name === 'split'  && currentProject) loadFullXhtml();
   if (name === 'editor' && currentProject) { loadChapterList(); loadIgnoreWords(); loadFootnotes(); }
@@ -754,7 +769,7 @@ function openProject(p) {
   //  .then(r => r.json())
   //  .then(chapters => showPanel(chapters.length ? 'editor' : 'split'))
   //  .catch(() => showPanel('split'));
-  showPanel('split');
+  showPanel('overview');
 }
 
 // ── Upload mode tabs ─────────────────────────────────────────────────────────
@@ -827,19 +842,6 @@ async function uploadManuscript() {
     const msg = uploadMode === 'epub'
       ? `✓ EPUB imported as "${data.id}" — ${(data.chapters||[]).length} chapters`
       : `✓ Project "${data.id}" created — "${data.title}"`;
-
-    // await loadProjects();
-    // openProject(data);
-    // // Reset upload form
-    // fileInput.value = '';
-    // document.getElementById('input-project-id').value = '';
-    // document.getElementById('input-title').value = '';
-    // document.getElementById('input-author').value = '';
-    // document.getElementById('upload-text').innerHTML = uploadMode === 'epub'
-    //   ? '<strong>Drop EPUB here</strong><br>or click to browse'
-    //   : '<strong>Drop DOCX / ODT here</strong><br>or click to browse';
-    // showStatus('upload-status', '', '');   
-    
     
     await loadProjects();
     openProject(data);
@@ -851,16 +853,66 @@ async function uploadManuscript() {
     setUploadMode(uploadMode);
     showStatus('upload-status', '', '');    
 
-
-
-    // showStatus('upload-status', msg, 'ok');
-    // await loadProjects();
-    // openProject(data);
   } catch(e) {
     showStatus('upload-status', '✗ Failed: ' + e.message, 'err');
   } finally {
     btn.disabled = false; btn.textContent = '↑ Upload & Convert';
   }
+}
+
+// ── Overview panel ───────────────────────────────────────────────────────────
+async function loadOverview() {
+  if (!currentProject) return;
+  const info = document.getElementById('overview-info');
+  const status = document.getElementById('overview-status');
+  info.innerHTML = 'Loading…';
+  try {
+    const [chapRes, buildRes] = await Promise.all([
+      fetch(`${API}/projects/${currentProject.id}/chapters`),
+      fetch(`${API}/projects/${currentProject.id}/build-config`),
+    ]);
+    const chapters = chapRes.ok ? await chapRes.json() : [];
+    const hasBuild = buildRes.ok;
+
+    info.innerHTML = `
+      <div><span style="color:var(--text3)">Project ID</span>&emsp;${currentProject.id}</div>
+      <div><span style="color:var(--text3)">Title</span>&emsp;${currentProject.title || '—'}</div>
+      <div><span style="color:var(--text3)">Author</span>&emsp;${currentProject.author || '—'}</div>
+      <div><span style="color:var(--text3)">full.xhtml</span>&emsp;✓</div>
+      <div><span style="color:var(--text3)">Chapters</span>&emsp;${chapters.length ? chapters.length + ' files' : '— none'}</div>
+      <div><span style="color:var(--text3)">Build config</span>&emsp;${hasBuild ? '✓' : '—'}</div>
+    `;
+    status.innerHTML = '';
+  } catch(e) {
+    info.innerHTML = `<span style="color:var(--accent)">${e.message}</span>`;
+  }
+}
+
+async function deleteProject() {
+  if (!currentProject) return;
+  const id = currentProject.id;
+  if (!confirm(`DELETE project "${id}" permanently?\n\nThis will remove all files including the original document. This cannot be undone.`)) return;
+  if (!confirm(`Are you sure? "${id}" will be gone forever.`)) return;
+  try {
+    const res = await fetch(`${API}/projects/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const d = await res.json(); showStatus('overview-status', '✗ ' + d.error, 'err'); return; }
+    currentProject = null;
+    document.getElementById('project-nav').style.display = 'none';
+    await loadProjects();
+    showPanel('welcome');
+  } catch(e) { showStatus('overview-status', '✗ ' + e.message, 'err'); }
+}
+
+async function resetProject() {
+  if (!currentProject) return;
+  if (!confirm(`Reset project "${currentProject.id}"?\n\nThis will delete all chapters, images, build config and footnotes, keeping only the original document and full.xhtml.`)) return;
+  try {
+    const res = await fetch(`${API}/projects/${currentProject.id}/reset`, { method: 'POST' });
+    if (!res.ok) { const d = await res.json(); showStatus('overview-status', '✗ ' + d.error, 'err'); return; }
+    buildConfig = null;
+    showStatus('overview-status', '✓ Project reset', 'ok');
+    loadOverview();
+  } catch(e) { showStatus('overview-status', '✗ ' + e.message, 'err'); }
 }
 
 // ── Split panel ──────────────────────────────────────────────────────────────

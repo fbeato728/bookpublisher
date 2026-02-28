@@ -100,3 +100,53 @@ def get_project(project_id):
         return jsonify({'error': 'Project not found'}), 404
     with open(meta_path) as f:
         return jsonify(json.load(f))
+
+@projects_bp.route('/api/projects/<project_id>', methods=['DELETE'])
+def delete_project(project_id):
+    import shutil
+    project_dir = os.path.join(PROJECTS_DIR, project_id)
+    if not os.path.exists(project_dir):
+        return jsonify({'error': 'Project not found'}), 404
+    shutil.rmtree(project_dir)
+    return jsonify({'ok': True})
+
+@projects_bp.route('/api/projects/<project_id>/reset', methods=['POST'])
+def reset_project(project_id):
+    import shutil
+    project_dir = os.path.join(PROJECTS_DIR, project_id)
+    if not os.path.exists(project_dir):
+        return jsonify({'error': 'Project not found'}), 404
+
+    # Keep: original/ and xhtml/full.xhtml
+    # Delete everything else inside the project folder
+
+    keep_dirs  = {'original'}
+    keep_files = {os.path.join('xhtml', 'full.xhtml')}
+
+    for entry in os.listdir(project_dir):
+        entry_path = os.path.join(project_dir, entry)
+        if entry == 'meta.json':
+            continue  # preserve meta
+        if entry in keep_dirs:
+            continue  # preserve original/
+        if entry == 'xhtml':
+            # Remove all xhtml files except full.xhtml
+            for f in os.listdir(entry_path):
+                if f != 'full.xhtml':
+                    os.remove(os.path.join(entry_path, f))
+            continue
+        if os.path.isdir(entry_path):
+            shutil.rmtree(entry_path)
+        else:
+            os.remove(entry_path)
+
+    # Reset meta.json status and chapters
+    meta_path = os.path.join(project_dir, 'meta.json')
+    with open(meta_path) as f:
+        meta = json.load(f)
+    meta['status'] = 'converted'
+    meta['chapters'] = []
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f, indent=2)
+
+    return jsonify({'ok': True})
