@@ -85,10 +85,19 @@ def load_meta(project_id):
         return json.load(f)
 
 def load_build_config(project_id):
+    xhtml_dir = os.path.join(PROJECTS_DIR, project_id, 'xhtml')
     path = os.path.join(PROJECTS_DIR, project_id, 'build_config.json')
     if os.path.exists(path):
         with open(path) as f:
-            return json.load(f)
+            config = json.load(f)
+        # Filter out chapters whose files no longer exist on disk
+        for profile in ('digital', 'print'):
+            if profile in config:
+                config[profile]['chapters'] = [
+                    c for c in config[profile].get('chapters', [])
+                    if os.path.exists(os.path.join(xhtml_dir, c['filename']))
+                ]
+        return config
     return default_build_config(project_id)
 
 def default_build_config(project_id):
