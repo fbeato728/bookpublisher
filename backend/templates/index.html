@@ -1302,11 +1302,16 @@ async function openChapter(filename, listEl) {
 let previewVisible  = false;
 let previewCssCache = {}; // keyed by cssName, stores already-scoped CSS
 
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+const debouncedRefreshPreview = debounce(() => { if (previewVisible) refreshPreview(); }, 500);
+
 async function togglePreviewPane() {
   if (previewVisible) {
     previewVisible = false;
     document.getElementById('preview-pane').classList.remove('active');
-    document.getElementById('editor-layout') && document.querySelector('.editor-layout').classList.remove('preview-open');
     document.querySelector('.editor-layout').classList.remove('preview-open');
     document.getElementById('btn-preview-file').classList.remove('active-toggle');
   } else {
@@ -1327,7 +1332,7 @@ async function refreshPreview() {
   if (editorMode === 'code' && monacoEditor) {
     xhtml = monacoEditor.getValue();
   } else {
-    xhtml = document.getElementById('editor-content').dataset.rawXhtml || '';
+    xhtml = serializeToXhtml();
   }
 
   // Fetch and scope CSS only if not already cached
@@ -1337,7 +1342,8 @@ async function refreshPreview() {
       const rawCss = cssRes.ok ? (await cssRes.json()).content : '';
       previewCssCache[cssName] = rawCss
         ? rawCss.replace(/([^{}]+)\{/g, (match, selector) => {
-            if (selector.trim().startsWith('@')) return match;
+            const s = selector.trim();
+          if (s.startsWith('@') || /^(from|to|\d+(\.\d+)?%)$/.test(s)) return match;
             const scoped = selector.split(',').map(s => `#preview-pane-body ${s.trim()}`).join(', ');
             return scoped + ' {';
           })
@@ -1429,7 +1435,12 @@ function switchToCodeMode() {
         scrollBeyondLastLine: false, automaticLayout: true,
       });
       monacoLoading = false;
-      monacoEditor.onDidChangeModelContent(() => { if (!monacoLoading) isDirty = true; });
+      monacoEditor.onDidChangeModelContent(() => {
+        if (!monacoLoading) {
+          isDirty = true;
+          debouncedRefreshPreview();
+        }
+      });
     } else {
       monacoLoading = true;
       monacoEditor.setValue(xhtml);
@@ -1533,6 +1544,7 @@ ${bodyHtml}
 document.getElementById('editor-content').addEventListener('input', () => {
   isDirty = true;
   if (ltMatches.length) { ltMatches = []; setEditorStatus('Text edited — recheck to refresh marks', 'warn'); }
+  debouncedRefreshPreview();
 });
 
 // ── LanguageTool ─────────────────────────────────────────────────────────────
