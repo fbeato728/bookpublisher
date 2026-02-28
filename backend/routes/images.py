@@ -60,6 +60,18 @@ def upload_image(project_id):
     return jsonify({'ok': True, 'filename': filename})
 
 
+@images_bp.route('/api/projects/<project_id>/images/<filename>', methods=['GET'])
+def serve_image(project_id, filename):
+    """Serve an image file from the project images dir."""
+    from flask import send_from_directory
+    if '/' in filename or '..' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    images_dir = _images_dir(project_id)
+    if not os.path.exists(os.path.join(images_dir, filename)):
+        return jsonify({'error': 'File not found'}), 404
+    return send_from_directory(images_dir, filename)
+
+
 @images_bp.route('/api/projects/<project_id>/images/<filename>', methods=['DELETE'])
 def delete_image(project_id, filename):
     """Delete an image from the project images dir."""

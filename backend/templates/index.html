@@ -253,12 +253,20 @@ html, body {
   transform: rotate(45deg);
 }
 #lt-popover.above::before { top: auto; bottom: -6px; transform: rotate(225deg); }
+.pop-rule { font-family: var(--mono); font-size: 0.75em; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
+.pop-msg  { font-family: var(--serif); font-size: 1rem; color: var(--text2); line-height: 1.4; margin-bottom: 0.5rem; }
+.pop-suggs { display: flex; flex-wrap: wrap; gap: 0.33rem; }
+.sugg-btn { background: #edf7f1; border: 1px solid #a8d5b8; color: var(--green); font-family: var(--mono); font-size: 0.8rem; padding: 0.18rem 0.5rem; border-radius: 3px; cursor: pointer; transition: background 0.1s; }
+.sugg-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
+.pop-no-sugg { font-family: var(--mono); font-size: 0.75rem; color: var(--text3); font-style: italic; }
+
+/* #lt-popover.above::before { top: auto; bottom: -6px; transform: rotate(225deg); }
 .pop-rule { font-family: var(--mono); font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
 .pop-msg  { font-family: var(--serif); font-size: 0.82rem; color: var(--text2); line-height: 1.4; margin-bottom: 0.5rem; }
 .pop-suggs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .sugg-btn { background: #edf7f1; border: 1px solid #a8d5b8; color: var(--green); font-family: var(--mono); font-size: 0.7rem; padding: 0.18rem 0.5rem; border-radius: 3px; cursor: pointer; transition: background 0.1s; }
 .sugg-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
-.pop-no-sugg { font-family: var(--mono); font-size: 0.68rem; color: var(--text3); font-style: italic; }
+.pop-no-sugg { font-family: var(--mono); font-size: 0.68rem; color: var(--text3); font-style: italic; } */
 
 
 /* ── Format buttons ── */
@@ -375,7 +383,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 55</span></div>
+    <div class="logo">Book<span>Publisher 69</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -549,7 +557,11 @@ html, body {
         <div class="preview-pane" id="preview-pane">
           <div class="preview-pane-header">
             <span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);flex:1">Preview</span>
-            <button class="btn danger" style="padding:0.15rem 0.5rem;font-size:0.72rem" onclick="togglePreviewPane()">✕</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="0.85rem" style="font-size:0.75rem" title="Small">A</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="0.95rem" style="font-size:0.88rem" title="Medium">A</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="1.05rem" style="font-size:1rem"   title="Large">A</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="1.15rem" style="font-size:1.15rem" title="X-Large">A</button>
+            <button class="btn danger" style="padding:0.15rem 0.5rem;font-size:0.72rem;margin-left:0.5rem" onclick="togglePreviewPane()">✕</button>
           </div>
           <div class="preview-pane-body" id="preview-pane-body"></div>
         </div>
@@ -739,6 +751,7 @@ function initMonaco(cb) {
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 function showPanel(name) {
+  if (name !== 'editor' && previewVisible) togglePreviewPane();
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -776,6 +789,12 @@ function openProject(p) {
     splitProjectId = null;
     splitMarkers   = [];
     previewCssCache = {};
+    currentChapterFile = null;
+    isDirty = false;
+    document.getElementById('editor-filename').textContent = '— no file open —';
+    document.getElementById('editor-content').innerHTML = '';
+    document.getElementById('editor-content').dataset.rawXhtml = '';
+    setEditorStatus('', '');
   }
   currentProject = p;
   document.getElementById('topbar-project').textContent = p.title || p.id;
@@ -1261,6 +1280,7 @@ async function openChapter(filename, listEl) {
       document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
       document.getElementById('btn-toggle-mode').style.display = 'none';
       document.getElementById('btn-preview-file').style.display = 'none';
+      if (previewVisible) togglePreviewPane();
       document.getElementById('preview-sep').style.display = 'none';
       document.getElementById('preview-css-select').style.display = 'none';
       setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
@@ -1353,7 +1373,7 @@ async function refreshPreview() {
 
   // Parse XHTML body
   const parser = new DOMParser();
-  const doc    = parser.parseFromString(xhtml, 'application/xhtml+xml');
+  const doc    = parser.parseFromString(xhtml, 'text/html');
   const body   = doc.querySelector('body');
   if (!body) { document.getElementById('preview-pane-body').innerHTML = '<p style="color:red;font-family:monospace">Could not parse body</p>'; return; }
 
@@ -1365,6 +1385,13 @@ async function refreshPreview() {
   styleEl.textContent = previewCssCache[cssName] || '';
   pane.parentNode.insertBefore(styleEl, pane);
   pane.innerHTML = body.innerHTML;
+  pane.querySelectorAll('img').forEach(img => {
+    const src = img.getAttribute('src') || '';
+    const filename = src.split('/').pop();
+    if (filename) {
+      img.src = `/publisher/api/projects/${currentProject.id}/images/${filename}`;
+    }
+  });
 }
 
 // ── Editor: text/code toggle ──────────────────────────────────────────────────
@@ -1727,6 +1754,24 @@ document.getElementById('btn-monaco-fs-down').addEventListener('click', () => {
   applyMonacoFontSize(px); updateMonacoFsLabel(px);
 });
 updateMonacoFsLabel(parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT);
+
+// ── Preview font size ─────────────────────────────────────────────────────────
+const PV_FS_KEY     = 'bp-preview-fs';
+const PV_FS_DEFAULT = '0.95rem';
+
+function applyPreviewFontSize(size) {
+  document.getElementById('preview-pane-body').style.fontSize = size;
+  document.querySelectorAll('.pv-fs-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.pvsize === size)
+  );
+  localStorage.setItem(PV_FS_KEY, size);
+}
+
+document.querySelectorAll('.pv-fs-btn').forEach(btn =>
+  btn.addEventListener('click', () => applyPreviewFontSize(btn.dataset.pvsize))
+);
+
+applyPreviewFontSize(localStorage.getItem(PV_FS_KEY) || PV_FS_DEFAULT);
 
 // ── Build panel ───────────────────────────────────────────────────────────────
 let buildConfig   = null;

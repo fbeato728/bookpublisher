@@ -75,7 +75,8 @@ def create_project():
     file.save(original_path)
 
     # Convert DOCX to single XHTML
-    xhtml = convert_docx(original_path, title)
+    images_dir = os.path.join(project_dir, 'images')
+    xhtml = convert_docx(original_path, title, images_dir=images_dir)
     save_full_xhtml(xhtml, os.path.join(project_dir, 'xhtml'), title)
 
     # Save metadata
