@@ -1270,7 +1270,6 @@ async function openChapter(filename, listEl) {
       document.getElementById('btn-preview-file').style.display = '';
       document.getElementById('preview-sep').style.display = '';
       document.getElementById('preview-css-select').style.display = '';
-      if (previewVisible) refreshPreview();
       const parser = new DOMParser();
       const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
       const body   = doc.querySelector('body');
@@ -1294,6 +1293,7 @@ async function openChapter(filename, listEl) {
       document.getElementById('editor-content').dataset.rawXhtml = data.content;
       fileIsHyphenated = data.content.includes('\u00AD');
       setEditorStatus('', '');
+      if (previewVisible) await refreshPreview();
     }
   } catch(e) { setEditorStatus('Error loading file', 'err'); }
 }
