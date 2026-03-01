@@ -188,6 +188,22 @@ def save_build_config_route(project_id):
     save_build_config(project_id, config)
     return jsonify({'ok': True})
 
+@build_bp.route('/api/projects/<project_id>/styles', methods=['POST'])
+def create_css_file(project_id):
+    """Create a new blank CSS file in the project styles dir."""
+    data     = request.json or {}
+    filename = data.get('filename', '').strip()
+    if not filename or not filename.endswith('.css') or '/' in filename or '..' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    styles_dir = os.path.join(PROJECTS_DIR, project_id, 'styles')
+    os.makedirs(styles_dir, exist_ok=True)
+    path = os.path.join(styles_dir, filename)
+    if os.path.exists(path):
+        return jsonify({'error': 'File already exists'}), 409
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(f'/* {filename} — project stylesheet */\n')
+    return jsonify({'ok': True, 'filename': filename})
+
 @build_bp.route('/api/projects/<project_id>/build/epub', methods=['POST'])
 def build_epub(project_id):
     """

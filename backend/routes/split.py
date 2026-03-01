@@ -152,6 +152,101 @@ def apply_splits(project_id):
     return jsonify({'saved': saved})
 
 
+@split_bp.route('/api/projects/<project_id>/chapters/sync', methods=['POST'])
+def sync_chapters(project_id):
+    """
+    Atomically apply chapter renames, deletions and reorder.
+    Body: {
+      "chapters": [{"filename": "...", "name": "...", "type": "..."}, ...],
+      "delete":   ["old_filename.xhtml", ...]
+    }
+    Renames are inferred from name changes (slug regenerated from new name).
+    Order in chapters list becomes the canonical spine order.
+    Both meta.json and build_config.json are updated.
+    """
+    project_dir = os.path.join(PROJECTS_DIR, project_id)
+    meta_path   = os.path.join(project_dir, 'meta.json')
+    bc_path     = os.path.join(project_dir, 'build_config.json')
+    xhtml_dir   = os.path.join(project_dir, 'xhtml')
+
+    if not os.path.exists(meta_path):
+        return jsonify({'error': 'Project not found'}), 404
+
+    data     = request.json or {}
+    desired  = data.get('chapters', [])    # [{filename, name, type}, ...]
+    to_delete = data.get('delete', [])     # [filename, ...]
+
+    errors = []
+
+    # 1. Delete files
+    for fname in to_delete:
+        if '/' in fname or '..' in fname:
+            continue
+        fpath = os.path.join(xhtml_dir, fname)
+        if os.path.exists(fpath):
+            try:
+                os.remove(fpath)
+            except Exception as e:
+                errors.append(f'Could not delete {fname}: {e}')
+
+    # 2. Rename files where name changed → new slug filename
+    #    We keep the 4-digit prefix and type, regenerate slug from new name
+    final_chapters = []
+    for ch in desired:
+        old_filename = ch.get('filename', '')
+        new_name     = ch.get('name', '').strip()
+        ch_type      = ch.get('type', 'chapter')
+
+        if not old_filename or '/' in old_filename or '..' in old_filename:
+            continue
+
+        # Regenerate filename from new name
+        parts = re.match(r'^(\d{4})_(\w+)_(.*?)\.xhtml$', old_filename)
+        if parts and new_name:
+            prefix   = parts.group(1)
+            slug     = re.sub(r'-+', '-', re.sub(r'[^a-z0-9]', '-', new_name.lower())).strip('-')
+            new_filename = f"{prefix}_{ch_type}_{slug}.xhtml"
+        else:
+            new_filename = old_filename
+
+        old_path = os.path.join(xhtml_dir, old_filename)
+        new_path = os.path.join(xhtml_dir, new_filename)
+
+        if old_filename != new_filename and os.path.exists(old_path):
+            if os.path.exists(new_path):
+                errors.append(f'Cannot rename {old_filename}: {new_filename} already exists')
+                new_filename = old_filename  # keep old
+            else:
+                try:
+                    os.rename(old_path, new_path)
+                except Exception as e:
+                    errors.append(f'Could not rename {old_filename}: {e}')
+                    new_filename = old_filename
+
+        final_chapters.append({'filename': new_filename, 'name': new_name or new_filename, 'type': ch_type})
+
+    # 3. Update meta.json
+    with open(meta_path) as f:
+        meta = json.load(f)
+    meta['chapters'] = final_chapters
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f, indent=2)
+
+    # 4. Update build_config.json
+    if os.path.exists(bc_path):
+        with open(bc_path) as f:
+            bc = json.load(f)
+        chapter_entries = [{'filename': c['filename'], 'name': c['name'], 'type': c['type'], 'enabled': True}
+                           for c in final_chapters]
+        for profile in ('digital', 'print'):
+            if profile in bc:
+                bc[profile]['chapters'] = chapter_entries
+        with open(bc_path, 'w') as f:
+            json.dump(bc, f, indent=2)
+
+    return jsonify({'ok': True, 'chapters': final_chapters, 'errors': errors})
+
+
 @split_bp.route('/api/projects/<project_id>/chapters', methods=['GET'])
 def list_chapters(project_id):
     """List all chapter XHTML files for a project."""
