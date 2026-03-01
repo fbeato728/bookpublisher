@@ -374,7 +374,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 70</span></div>
+    <div class="logo">Book<span>Publisher 76</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -871,7 +871,26 @@ async function uploadManuscript() {
     const msg = uploadMode === 'epub'
       ? `✓ EPUB imported as "${data.id}" — ${(data.chapters||[]).length} chapters`
       : `✓ Project "${data.id}" created — "${data.title}"`;
-    
+
+    // Save default build config with front matter pre-populated, chapters from import if any
+    const chapterEntries = (data.chapters || []).map(ch => ({ filename: typeof ch === 'string' ? ch : ch.filename, enabled: true }));
+    const defaultConfig = {
+      digital: {
+        front_matter: JSON.parse(JSON.stringify(BUILD_DEFAULTS.digital.front_matter)),
+        back_matter:  JSON.parse(JSON.stringify(BUILD_DEFAULTS.digital.back_matter)),
+        chapters: chapterEntries,
+      },
+      print: {
+        front_matter: JSON.parse(JSON.stringify(BUILD_DEFAULTS.print.front_matter)),
+        back_matter:  JSON.parse(JSON.stringify(BUILD_DEFAULTS.print.back_matter)),
+        chapters: chapterEntries,
+      },
+    };
+    await fetch(`${API}/projects/${data.id}/build-config`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(defaultConfig),
+    });
+
     await loadProjects();
     openProject(data);
     // Reset upload form
@@ -1129,7 +1148,21 @@ async function applySplits() {
     if (!res.ok) { showStatus('split-status', '✗ ' + (data.error || 'Failed'), 'err'); return; }
     showStatus('split-status', `✓ ${data.saved.length} files created`, 'ok');
     currentProject.status = 'split'; currentProject.chapters = data.saved;
-    buildConfig = null; // force Build panel to reload fresh chapter list
+    // Fetch existing build config and update chapters in both profiles
+    try {
+      const bcRes = await fetch(`${API}/projects/${currentProject.id}/build-config`);
+      const bc    = bcRes.ok ? await bcRes.json() : null;
+      if (bc) {
+        const chapterEntries = data.saved.map(ch => ({ filename: ch.filename, enabled: true }));
+        bc.digital.chapters = chapterEntries;
+        bc.print.chapters   = chapterEntries;
+        await fetch(`${API}/projects/${currentProject.id}/build-config`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(bc),
+        });
+      }
+    } catch(e) { console.error('build-config update after split:', e); }
+    buildConfig = null; // force Build panel to reload
     clearAllSplits();
     setTimeout(() => showPanel('editor'), 800);
   } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }

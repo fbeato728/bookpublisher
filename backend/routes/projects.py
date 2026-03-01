@@ -2,12 +2,24 @@ import os
 import uuid
 import json
 import re
+import shutil
 from flask import Blueprint, request, jsonify
 from scripts.docx_converter import convert_docx, save_full_xhtml
 
 projects_bp = Blueprint('projects', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
+PROJECTS_DIR     = '/srv/bookpublisher/projects'
+GLOBAL_TEMPLATES = '/srv/bookpublisher/global/templates'
+
+# Front matter files to copy from global/templates into every new project
+FRONT_MATTER_FILES = [
+    'cover_digital.xhtml',
+    'credits_digital.xhtml',
+    'credits_print.xhtml',
+    'inside_cover_print.xhtml',
+    'taula.xhtml',
+    'title_only.xhtml',
+]
 
 def slugify(text):
     text = text.lower().strip()
@@ -78,6 +90,13 @@ def create_project():
     images_dir = os.path.join(project_dir, 'images')
     xhtml = convert_docx(original_path, title, images_dir=images_dir)
     save_full_xhtml(xhtml, os.path.join(project_dir, 'xhtml'), title)
+
+    # Copy global front matter templates into the project xhtml dir
+    xhtml_dir = os.path.join(project_dir, 'xhtml')
+    for fname in FRONT_MATTER_FILES:
+        src = os.path.join(GLOBAL_TEMPLATES, fname)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(xhtml_dir, fname))
 
     # Save metadata
     meta = {
