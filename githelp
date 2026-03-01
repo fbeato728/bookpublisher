@@ -4,6 +4,8 @@ Stage: git add .
 Label (Commit): git commit -m "brief description of what you changed"
 Send (Push): git push origin main
 
+========================================================================================================
+
 the steps for pulling new stuff from github
 Bash
 git fetch origin
