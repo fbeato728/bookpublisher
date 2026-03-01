@@ -260,15 +260,6 @@ html, body {
 .sugg-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
 .pop-no-sugg { font-family: var(--mono); font-size: 0.75rem; color: var(--text3); font-style: italic; }
 
-/* #lt-popover.above::before { top: auto; bottom: -6px; transform: rotate(225deg); }
-.pop-rule { font-family: var(--mono); font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
-.pop-msg  { font-family: var(--serif); font-size: 0.82rem; color: var(--text2); line-height: 1.4; margin-bottom: 0.5rem; }
-.pop-suggs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.sugg-btn { background: #edf7f1; border: 1px solid #a8d5b8; color: var(--green); font-family: var(--mono); font-size: 0.7rem; padding: 0.18rem 0.5rem; border-radius: 3px; cursor: pointer; transition: background 0.1s; }
-.sugg-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
-.pop-no-sugg { font-family: var(--mono); font-size: 0.68rem; color: var(--text3); font-style: italic; } */
-
-
 /* ── Format buttons ── */
 .fn-marker {
   display: inline-block; font-family: var(--mono); font-size: 0.72em;
@@ -383,7 +374,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 69</span></div>
+    <div class="logo">Book<span>Publisher 70</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -2373,6 +2364,10 @@ async function hyphenateChapters() {
     } else {
       showStatus('build-action-status', `✓ ${n} file${n!==1?'s':''} hyphenated`, 'ok');
     }
+    if (currentChapterFile && data.processed.includes(currentChapterFile)) {
+      const activeEl = document.querySelector('.editor-fileitem.active');
+      await openChapter(currentChapterFile, activeEl);
+    }
   } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
   finally { btn.disabled = false; btn.textContent = '⟳ Hyphenate chapters'; }
 }
@@ -2395,6 +2390,12 @@ async function dehyphenateChapters() {
       showStatus('build-action-status', `⚠ ${n} file${n!==1?'s':''} cleaned, ${err} error${err!==1?'s':''}`, 'err');
     } else {
       showStatus('build-action-status', `✓ ${n} file${n!==1?'s':''} dehyphenated`, 'ok');
+    }
+    // If the currently open file was dehyphenated, reload it so the editor
+    // reflects the change and fileIsHyphenated is reset correctly
+    if (currentChapterFile && data.processed.includes(currentChapterFile)) {
+      const activeEl = document.querySelector('.editor-fileitem.active');
+      await openChapter(currentChapterFile, activeEl);
     }
   } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
   finally { btn.disabled = false; btn.textContent = '✕ Remove hyphens'; }
