@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 import zipfile
@@ -187,22 +188,6 @@ def save_build_config_route(project_id):
     config = request.json
     save_build_config(project_id, config)
     return jsonify({'ok': True})
-
-@build_bp.route('/api/projects/<project_id>/styles', methods=['POST'])
-def create_css_file(project_id):
-    """Create a new blank CSS file in the project styles dir."""
-    data     = request.json or {}
-    filename = data.get('filename', '').strip()
-    if not filename or not filename.endswith('.css') or '/' in filename or '..' in filename:
-        return jsonify({'error': 'Invalid filename'}), 400
-    styles_dir = os.path.join(PROJECTS_DIR, project_id, 'styles')
-    os.makedirs(styles_dir, exist_ok=True)
-    path = os.path.join(styles_dir, filename)
-    if os.path.exists(path):
-        return jsonify({'error': 'File already exists'}), 409
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(f'/* {filename} — project stylesheet */\n')
-    return jsonify({'ok': True, 'filename': filename})
 
 @build_bp.route('/api/projects/<project_id>/build/epub', methods=['POST'])
 def build_epub(project_id):
@@ -520,7 +505,7 @@ def assemble_epub(project_id, meta, config, profile):
 
     # ── CSS manifest entries ──────────────────────────────────────────────────
     css_ids = {'main.css': 'style001.css'}
-    for css in css_files:
+    for css in styles_needed:
         cid = css_ids.get(css, css.replace('.', '_').replace('-', '_'))
         if css in styles_needed:
             manifest_items.append({'id': cid, 'href': f'styles/{css}',
@@ -536,13 +521,24 @@ def assemble_epub(project_id, meta, config, profile):
 
     # ── Image manifest entries ────────────────────────────────────────────────
     img_mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif'}
+
+    # Cover image: added directly to manifest with cover-image property, never in spine
+    if cover_img:
+        cover_src = get_project_file(project_id, 'images', cover_img)
+        if cover_src:
+            ext  = cover_img.rsplit('.', 1)[-1].lower()
+            mime = img_mime.get(ext, 'image/jpeg')
+            manifest_items.append({'id': 'cover', 'href': f'images/{cover_img}',
+                                   'media_type': mime, 'properties': 'cover-image'})
+            images_needed[cover_img] = cover_src
+
     for i, img in enumerate(images_needed):
+        if cover_img and img == cover_img:
+            continue  # already added above
         ext  = img.rsplit('.', 1)[-1].lower()
         mime = img_mime.get(ext, 'image/jpeg')
-        props = 'cover-image' if (not is_print and cover_img and img == cover_img) else None
-        iid   = 'cover' if (not is_print and img == cover_img) else f'img{i}'
-        manifest_items.append({'id': iid, 'href': f'images/{img}',
-                               'media_type': mime, 'properties': props})
+        manifest_items.append({'id': f'img{i}', 'href': f'images/{img}',
+                               'media_type': mime, 'properties': None})
 
     # ── content.opf ──────────────────────────────────────────────────────────
     opf = _build_opf(book_id, title, author, language, now, manifest_items, spine_items, is_print)

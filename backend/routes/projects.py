@@ -121,6 +121,25 @@ def get_project(project_id):
     with open(meta_path) as f:
         return jsonify(json.load(f))
 
+@projects_bp.route('/api/projects/<project_id>', methods=['PATCH'])
+def update_project_meta(project_id):
+    """Update editable metadata fields in meta.json."""
+    meta_path = os.path.join(PROJECTS_DIR, project_id, 'meta.json')
+    if not os.path.exists(meta_path):
+        return jsonify({'error': 'Project not found'}), 404
+    with open(meta_path) as f:
+        meta = json.load(f)
+    allowed = {'title', 'author', 'language', 'publisher', 'isbn', 'translator',
+               'depot_legal', 'first_edition', 'original_title', 'original_year',
+               'original_author', 'translation_year'}
+    data = request.json or {}
+    for key, value in data.items():
+        if key in allowed:
+            meta[key] = value
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f, indent=2)
+    return jsonify({'ok': True, 'meta': meta})
+
 @projects_bp.route('/api/projects/<project_id>', methods=['DELETE'])
 def delete_project(project_id):
     import shutil

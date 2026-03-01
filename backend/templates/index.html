@@ -375,7 +375,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 80</span></div>
+    <div class="logo">Book<span>Publisher 87</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -643,12 +643,16 @@ html, body {
           <div class="build-card">
             <div class="build-card-title">Metadata</div>
             <div class="form-group" style="margin-bottom:0.5rem">
+              <label class="form-label">Author</label>
+              <input class="form-input" type="text" id="build-author" placeholder="Author name" style="font-size:0.82rem" onblur="saveMetaField('author', this.value)">
+            </div>
+            <div class="form-group" style="margin-bottom:0.5rem">
               <label class="form-label">Language</label>
-              <input class="form-input" type="text" id="build-language" placeholder="ca" style="font-size:0.82rem">
+              <input class="form-input" type="text" id="build-language" placeholder="ca" style="font-size:0.82rem" onblur="saveMetaField('language', this.value)">
             </div>
             <div class="form-group" style="margin-bottom:0">
               <label class="form-label">Publisher</label>
-              <input class="form-input" type="text" id="build-publisher" placeholder="BonPort" style="font-size:0.82rem">
+              <input class="form-input" type="text" id="build-publisher" placeholder="BonPort" style="font-size:0.82rem" onblur="saveMetaField('publisher', this.value)">
             </div>
           </div>
           <div class="build-card">
@@ -1415,11 +1419,21 @@ async function refreshPreview() {
     try {
       const cssRes = await fetch(`${API}/projects/${currentProject.id}/styles/${cssName}`);
       const rawCss = cssRes.ok ? (await cssRes.json()).content : '';
-      previewCssCache[cssName] = rawCss
-        ? rawCss.replace(/([^{}]+)\{/g, (match, selector) => {
+      // Rewrite font URLs so @font-face works in preview context
+      const fontBase = `/publisher/api/projects/${currentProject.id}/fonts/`;
+      const rewrittenCss = rawCss.replace(/url\(['"]?\.\.\/fonts\/([^'")\s]+)['"]?\)/g,
+        (_, fname) => `url('${fontBase}${fname}')`);
+      // Strip CSS comments before scoping so they don't get matched as selectors
+      const stripped = rewrittenCss.replace(/\/\*[\s\S]*?\*\//g, '');
+      previewCssCache[cssName] = stripped
+        ? stripped.replace(/([^{}]+)\{/g, (match, selector) => {
             const s = selector.trim();
-          if (s.startsWith('@') || /^(from|to|\d+(\.\d+)?%)$/.test(s)) return match;
-            const scoped = selector.split(',').map(s => `#preview-pane-body ${s.trim()}`).join(', ');
+            if (s.startsWith('@') || /^(from|to|\d+(\.\d+)?%)$/.test(s)) return match;
+            const scoped = selector.split(',').map(sel => {
+              const t = sel.trim();
+              if (t === 'body') return `#preview-pane-body`;
+              return `#preview-pane-body ${t}`;
+            }).join(', ');
             return scoped + ' {';
           })
         : '';
@@ -1884,6 +1898,7 @@ function renderBuildPanel() {
   document.getElementById('btn-dehyphenate').disabled = false;
   const prof = buildConfig[buildProfile];
   if (currentProject) {
+    document.getElementById('build-author').value   = currentProject.author    || '';
     document.getElementById('build-language').value  = currentProject.language  || 'ca';
     document.getElementById('build-publisher').value = currentProject.publisher || 'BonPort';
   }
@@ -2539,6 +2554,20 @@ async function setCoverImage(filename, isAlreadyCover) {
     body: JSON.stringify({ filename: newVal })
   });
   loadImageList();
+}
+
+async function saveMetaField(field, value) {
+  if (!currentProject) return;
+  try {
+    const res = await fetch(`${API}/projects/${currentProject.id}`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      currentProject = { ...currentProject, ...data.meta };
+    }
+  } catch(e) { console.error('saveMetaField:', e); }
 }
 
 async function saveBuildConfig() {
