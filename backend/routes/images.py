@@ -31,14 +31,18 @@ def list_images(project_id):
     """List all images in the project images dir."""
     images_dir = _images_dir(project_id)
     if not os.path.exists(images_dir):
-        return jsonify({'images': [], 'cover_image': None})
+        return jsonify({'images': [], 'cover_image': None, 'digital_inside_cover': None, 'print_inside_cover': None})
     meta = _load_meta(project_id)
-    cover = meta.get('cover_image', None)
     files = sorted(
         f for f in os.listdir(images_dir)
         if f.rsplit('.', 1)[-1].lower() in ALLOWED_EXTS
     )
-    return jsonify({'images': files, 'cover_image': cover})
+    return jsonify({
+        'images':               files,
+        'cover_image':          meta.get('cover_image', None),
+        'digital_inside_cover': meta.get('digital_inside_cover', None),
+        'print_inside_cover':   meta.get('print_inside_cover', None),
+    })
 
 
 @images_bp.route('/api/projects/<project_id>/images', methods=['POST'])
@@ -81,19 +85,27 @@ def delete_image(project_id, filename):
     if not os.path.exists(path):
         return jsonify({'error': 'File not found'}), 404
     os.remove(path)
-    # If this was the cover image, clear it
+    # Clear any cover assignment that referenced this file
     meta = _load_meta(project_id)
-    if meta.get('cover_image') == filename:
-        meta['cover_image'] = None
+    changed = False
+    for field in ('cover_image', 'digital_inside_cover', 'print_inside_cover'):
+        if meta.get(field) == filename:
+            meta[field] = None
+            changed = True
+    if changed:
         _save_meta(project_id, meta)
     return jsonify({'ok': True})
 
 
 @images_bp.route('/api/projects/<project_id>/cover-image', methods=['PUT'])
 def set_cover_image(project_id):
-    """Set which image is the EPUB cover (stored in meta.json)."""
-    filename = request.json.get('filename')
+    """Assign an image to a cover role. field: cover_image | digital_inside_cover | print_inside_cover."""
+    data     = request.json or {}
+    filename = data.get('filename')   # None to unset
+    field    = data.get('field', 'cover_image')
+    if field not in ('cover_image', 'digital_inside_cover', 'print_inside_cover'):
+        return jsonify({'error': 'Invalid field'}), 400
     meta = _load_meta(project_id)
-    meta['cover_image'] = filename  # None to unset
+    meta[field] = filename
     _save_meta(project_id, meta)
-    return jsonify({'ok': True, 'cover_image': filename})
+    return jsonify({'ok': True, field: filename})

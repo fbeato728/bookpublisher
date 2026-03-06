@@ -79,7 +79,7 @@ def create_project():
         return jsonify({'error': f'Project "{project_id}" already exists'}), 400
 
     # Create folders
-    for subdir in ['original', 'xhtml', 'assets/images', 'assets/fonts', 'assets/styles', 'epub', 'print', 'pdf']:
+    for subdir in ['original', 'xhtml', 'images', 'styles', 'fonts', 'builds']:
         os.makedirs(os.path.join(project_dir, subdir), exist_ok=True)
 
     # Save original file
@@ -97,6 +97,15 @@ def create_project():
         src = os.path.join(GLOBAL_TEMPLATES, fname)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(xhtml_dir, fname))
+
+    # Copy all CSS files from global/styles into the project styles dir
+    styles_dir = os.path.join(project_dir, 'styles')
+    global_styles_dir = '/srv/bookpublisher/global/styles'
+    if os.path.exists(global_styles_dir):
+        for css_file in os.listdir(global_styles_dir):
+            if css_file.endswith('.css'):
+                src = os.path.join(global_styles_dir, css_file)
+                shutil.copy2(src, os.path.join(styles_dir, css_file))
 
     # Save metadata
     meta = {
