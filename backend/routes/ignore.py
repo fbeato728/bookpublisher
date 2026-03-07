@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify
 
 ignore_bp = Blueprint('ignore', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
+from config import PROJECTS_DIR
 
 
 def _ignore_path(project_id):

@@ -1,0 +1,6 @@
+flask
+flask-cors
+lxml
+requests
+Pillow
+python-docx

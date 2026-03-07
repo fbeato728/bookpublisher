@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify
 
 footnotes_bp = Blueprint('footnotes', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
+from config import PROJECTS_DIR
 
 def _footnotes_path(project_id):
     return os.path.join(PROJECTS_DIR, project_id, 'footnotes.json')

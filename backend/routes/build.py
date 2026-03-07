@@ -10,9 +10,7 @@ from lxml import etree
 
 build_bp = Blueprint('build', __name__)
 
-PROJECTS_DIR  = '/srv/bookpublisher/projects'
-GLOBAL_DIR    = '/srv/bookpublisher/global'   # global CSS, fonts, templates
-BUILDS_DIR    = '/srv/bookpublisher/builds'   # output EPUBs
+from config import PROJECTS_DIR, GLOBAL_DIR, BUILDS_DIR
 
 # ── Global asset paths ────────────────────────────────────────────────────────
 GLOBAL_STYLES = os.path.join(GLOBAL_DIR, 'styles')

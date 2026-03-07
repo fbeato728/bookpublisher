@@ -4,9 +4,10 @@ import uuid
 import io
 from PIL import Image  # requires: pip install Pillow
 from docx import Document
+from config import GLOBAL_DIR
 
 # Load config from global config file
-CONFIG_PATH = '/srv/bookpublisher/global/config/docx_converter.json'
+CONFIG_PATH = os.path.join(GLOBAL_DIR, 'config', 'docx_converter.json')
 
 def load_config():
     """Load DOCX converter config from JSON file."""
