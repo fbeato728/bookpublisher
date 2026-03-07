@@ -469,7 +469,6 @@ async function openChapter(filename, listEl) {
 }
 
 // ── Preview pane ──────────────────────────────────────────────────────────────
-let previewVisible = false;
 let previewMode = 'digital';  // 'digital' or 'print'
 
 function togglePreviewMode() {

@@ -15,4 +15,5 @@ let monacoReady        = false;
 let monacoLoading      = false;   // guard: suppress isDirty during programmatic setValue
 let uploadMode         = 'docx';
 let fileIsHyphenated   = false;    // true when the loaded file contains soft hyphens
+let previewVisible     = false;
 
