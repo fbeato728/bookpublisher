@@ -1,7 +1,5 @@
 'use strict';
 
-const API = '/publisher/api';
-
 let currentProject     = null;
 let splitElements      = [];
 let splitMarkers       = [];

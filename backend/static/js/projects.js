@@ -55,8 +55,7 @@ function showPanel(name) {
 // ── Projects ─────────────────────────────────────────────────────────────────
 async function loadProjects() {
   try {
-    const res      = await fetch(`${API}/projects`);
-    const projects = await res.json();
+    const projects = await apiFetch('GET', '/projects');
     const list     = document.getElementById('project-list');
     list.innerHTML = '';
     projects.forEach(p => {
@@ -160,12 +159,10 @@ async function uploadManuscript() {
   form.append('file', file); form.append('project_id', projectId);
   form.append('title', title); form.append('author', author);
 
-  const endpoint = uploadMode === 'epub' ? `${API}/projects/import-epub` : `${API}/projects`;
+  const path = uploadMode === 'epub' ? '/projects/import-epub' : '/projects';
 
   try {
-    const res  = await fetch(endpoint, { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) { showStatus('upload-status', '✗ ' + (data.error || 'Failed'), 'err'); return; }
+    const data = await apiFetch('POST', path, form);
     const msg = uploadMode === 'epub'
       ? `✓ EPUB imported as "${data.id}" — ${(data.chapters||[]).length} chapters`
       : `✓ Project "${data.id}" created — "${data.title}"`;
@@ -185,10 +182,7 @@ async function uploadManuscript() {
         back_matter:  JSON.parse(JSON.stringify(BUILD_DEFAULTS.print.back_matter)),
       },
     };
-    await fetch(`${API}/projects/${data.id}/build-config`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(defaultConfig),
-    });
+    await apiFetch('POST', `/projects/${data.id}/build-config`, defaultConfig);
 
     await loadProjects();
     openProject(data);
@@ -214,12 +208,9 @@ async function loadOverview() {
   const status = document.getElementById('overview-status');
   info.innerHTML = 'Loading…';
   try {
-    const [chapRes, buildRes] = await Promise.all([
-      fetch(`${API}/projects/${currentProject.id}/chapters`),
-      fetch(`${API}/projects/${currentProject.id}/build-config`),
-    ]);
-    const chapters = chapRes.ok ? await chapRes.json() : [];
-    const hasBuild = buildRes.ok;
+    let chapters = [], hasBuild = false;
+    try { chapters = await apiFetch('GET', `/projects/${currentProject.id}/chapters`); } catch {}
+    try { await apiFetch('GET', `/projects/${currentProject.id}/build-config`); hasBuild = true; } catch {}
 
     info.innerHTML = `
       <div><span style="color:var(--text3)">Project ID</span>&emsp;${currentProject.id}</div>
@@ -241,8 +232,7 @@ async function deleteProject() {
   if (!confirm(`DELETE project "${id}" permanently?\n\nThis will remove all files including the original document. This cannot be undone.`)) return;
   if (!confirm(`Are you sure? "${id}" will be gone forever.`)) return;
   try {
-    const res = await fetch(`${API}/projects/${id}`, { method: 'DELETE' });
-    if (!res.ok) { const d = await res.json(); showStatus('overview-status', '✗ ' + d.error, 'err'); return; }
+    await apiFetch('DELETE', `/projects/${id}`);
     currentProject = null;
     document.getElementById('project-nav').style.display = 'none';
     await loadProjects();
@@ -254,8 +244,7 @@ async function resetProject() {
   if (!currentProject) return;
   if (!confirm(`Reset project "${currentProject.id}"?\n\nThis will delete all chapters, images, build config and footnotes, keeping only the original document and full.xhtml.`)) return;
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/reset`, { method: 'POST' });
-    if (!res.ok) { const d = await res.json(); showStatus('overview-status', '✗ ' + d.error, 'err'); return; }
+    await apiFetch('POST', `/projects/${currentProject.id}/reset`);
     buildConfig = null;
     showStatus('overview-status', '✓ Project reset', 'ok');
     loadOverview();
