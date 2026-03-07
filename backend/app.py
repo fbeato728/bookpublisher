@@ -13,6 +13,7 @@ from routes.ignore import load_ignore
 from routes.images import images_bp
 from routes.footnotes import footnotes_bp
 from routes.hyphenate import hyphenate_bp
+from routes.fonts import fonts_bp
 
 app = Flask(__name__,
     template_folder='templates',
@@ -28,6 +29,7 @@ app.register_blueprint(ignore_bp)
 app.register_blueprint(images_bp)
 app.register_blueprint(footnotes_bp)
 app.register_blueprint(hyphenate_bp)
+app.register_blueprint(fonts_bp)
 
 LT_URL = 'http://localhost:8082/v2/check'
 

@@ -21,10 +21,20 @@ body, div, dl, dt, dd, h1, h2, h3, h4, h5, h6, p, pre, code, blockquote {
   padding: 0;
   border-width: 0;
 }
-body { -epub-hyphens: auto; }
+body { 
+  -epub-hyphens: auto;
+  hyphens: auto; 
+}
+
 @page { margin: 20px; }
+
 a._idGenColorInherit { color: inherit; }
+
 div.Marco-de-texto-b-sico { border-style: solid; }
+
+div._idGenObjectStyleOverride-1 {
+  margin-top: 55%;
+}
 
 /* ── Paragraph styles ────────────────────────────────────────────────────────── */
 p._NORMAL,

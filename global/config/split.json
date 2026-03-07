@@ -1,0 +1,147 @@
+{
+  "xhtml": {
+    "declaration": "<?xml version='1.0' encoding='UTF-8'?>",
+    "namespaces": {
+      "html": "http://www.w3.org/1999/xhtml",
+      "epub": "http://www.idpf.org/2007/ops"
+    },
+    "meta": {
+      "content_type": "text/html; charset=utf-8"
+    },
+    "stylesheet": {
+      "href": "../styles/main.css",
+      "rel": "stylesheet",
+      "type": "text/css"
+    },
+    "templates": {
+      "chapter": {
+        "description": "Standard chapter XHTML template"
+      },
+      "blank": {
+        "description": "Blank chapter XHTML template",
+        "body_class": "normalText",
+        "body_content": "<p class=\"normalText\"></p>"
+      }
+    }
+  },
+
+  "chapters": {
+    "naming": {
+      "pattern": "^\\d{4}_",
+      "prefix_length": 4,
+      "separator": "_"
+    },
+    "defaults": {
+      "type": "chapter",
+      "title_separator": " — ",
+      "auto_name_prefix": "chapter"
+    }
+  },
+
+  "files": {
+    "allowed_extensions": {
+      "xhtml": ".xhtml",
+      "css": ".css"
+    },
+    "unsafe_path_chars": ["/", ".."],
+    "json_indent": 2,
+    "encoding": "utf-8"
+  },
+
+  "paths": {
+    "subdirs": {
+      "xhtml": "xhtml",
+      "styles": "styles",
+      "original": "original"
+    },
+    "files": {
+      "meta": "meta.json",
+      "build_config": "build_config.json",
+      "full_xhtml": "full.xhtml"
+    }
+  },
+
+  "tokens": {
+    "template_tokens": {
+      "{{TITLE}}": {
+        "meta_field": "title",
+        "default": ""
+      },
+      "{{AUTHOR}}": {
+        "meta_field": "author",
+        "default": ""
+      },
+      "{{COVER_IMAGE}}": {
+        "meta_field": "digital_cover",
+        "default": ""
+      },
+      "{{FIRST_EDITION}}": {
+        "meta_field": "first_edition",
+        "default": ""
+      },
+      "{{ORIGINAL_TITLE}}": {
+        "meta_fields": ["original_title", "title"],
+        "default": ""
+      },
+      "{{ORIGINAL_YEAR}}": {
+        "meta_field": "original_year",
+        "default": ""
+      },
+      "{{ORIGINAL_AUTHOR}}": {
+        "meta_fields": ["original_author", "author"],
+        "default": ""
+      },
+      "{{TRANSLATOR}}": {
+        "meta_field": "translator",
+        "default": ""
+      },
+      "{{TRANSLATION_YEAR}}": {
+        "meta_field": "translation_year",
+        "default": ""
+      },
+      "{{ISBN}}": {
+        "meta_field": "isbn",
+        "default": ""
+      },
+      "{{DEPOT_LEGAL}}": {
+        "meta_field": "depot_legal",
+        "default": ""
+      }
+    }
+  },
+
+  "metadata": {
+    "defaults": {
+      "title": "Untitled"
+    },
+    "status_values": {
+      "split": "split"
+    }
+  },
+
+  "messages": {
+    "info": {
+      "saved": "Saved: {filename}",
+      "created": "Created: {filename}"
+    },
+    "errors": {
+      "full_xhtml_not_found": "full.xhtml not found",
+      "no_splits_provided": "No splits provided",
+      "parse_error": "Could not parse body from full.xhtml",
+      "invalid_filename": "Invalid filename",
+      "file_already_exists": "File already exists",
+      "file_not_found": "File not found",
+      "project_not_found": "Project not found",
+      "target_exists": "Target filename already exists",
+      "delete_error": "Could not delete {filename}: {error}",
+      "invalid_new_filename": "Invalid new filename"
+    }
+  },
+
+  "validation": {
+    "file_extensions": {
+      "xhtml": ".xhtml",
+      "css": ".css"
+    }
+  }
+}

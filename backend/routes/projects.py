@@ -2,12 +2,24 @@ import os
 import uuid
 import json
 import re
+import shutil
 from flask import Blueprint, request, jsonify
 from scripts.docx_converter import convert_docx, save_full_xhtml
 
 projects_bp = Blueprint('projects', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
+PROJECTS_DIR     = '/srv/bookpublisher/projects'
+GLOBAL_TEMPLATES = '/srv/bookpublisher/global/templates'
+
+# Front matter files to copy from global/templates into every new project
+FRONT_MATTER_FILES = [
+    'cover_digital.xhtml',
+    'credits_digital.xhtml',
+    'credits_print.xhtml',
+    'inside_cover_print.xhtml',
+    'taula.xhtml',
+    'title_only.xhtml',
+]
 
 def slugify(text):
     text = text.lower().strip()
@@ -67,7 +79,7 @@ def create_project():
         return jsonify({'error': f'Project "{project_id}" already exists'}), 400
 
     # Create folders
-    for subdir in ['original', 'xhtml', 'assets/images', 'assets/fonts', 'assets/styles', 'epub', 'print', 'pdf']:
+    for subdir in ['original', 'xhtml', 'images', 'styles', 'fonts', 'builds']:
         os.makedirs(os.path.join(project_dir, subdir), exist_ok=True)
 
     # Save original file
@@ -75,8 +87,25 @@ def create_project():
     file.save(original_path)
 
     # Convert DOCX to single XHTML
-    xhtml = convert_docx(original_path, title)
+    images_dir = os.path.join(project_dir, 'images')
+    xhtml = convert_docx(original_path, title, images_dir=images_dir)
     save_full_xhtml(xhtml, os.path.join(project_dir, 'xhtml'), title)
+
+    # Copy global front matter templates into the project xhtml dir
+    xhtml_dir = os.path.join(project_dir, 'xhtml')
+    for fname in FRONT_MATTER_FILES:
+        src = os.path.join(GLOBAL_TEMPLATES, fname)
+        if os.path.exists(src):
+            shutil.copy2(src, os.path.join(xhtml_dir, fname))
+
+    # Copy all CSS files from global/styles into the project styles dir
+    styles_dir = os.path.join(project_dir, 'styles')
+    global_styles_dir = '/srv/bookpublisher/global/styles'
+    if os.path.exists(global_styles_dir):
+        for css_file in os.listdir(global_styles_dir):
+            if css_file.endswith('.css'):
+                src = os.path.join(global_styles_dir, css_file)
+                shutil.copy2(src, os.path.join(styles_dir, css_file))
 
     # Save metadata
     meta = {
@@ -100,6 +129,25 @@ def get_project(project_id):
         return jsonify({'error': 'Project not found'}), 404
     with open(meta_path) as f:
         return jsonify(json.load(f))
+
+@projects_bp.route('/api/projects/<project_id>', methods=['PATCH'])
+def update_project_meta(project_id):
+    """Update editable metadata fields in meta.json."""
+    meta_path = os.path.join(PROJECTS_DIR, project_id, 'meta.json')
+    if not os.path.exists(meta_path):
+        return jsonify({'error': 'Project not found'}), 404
+    with open(meta_path) as f:
+        meta = json.load(f)
+    allowed = {'title', 'author', 'language', 'publisher', 'isbn', 'translator',
+               'depot_legal', 'first_edition', 'original_title', 'original_year',
+               'original_author', 'translation_year'}
+    data = request.json or {}
+    for key, value in data.items():
+        if key in allowed:
+            meta[key] = value
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f, indent=2)
+    return jsonify({'ok': True, 'meta': meta})
 
 @projects_bp.route('/api/projects/<project_id>', methods=['DELETE'])
 def delete_project(project_id):

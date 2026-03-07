@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 import zipfile
@@ -17,6 +18,8 @@ BUILDS_DIR    = '/srv/bookpublisher/builds'   # output EPUBs
 GLOBAL_STYLES = os.path.join(GLOBAL_DIR, 'styles')
 GLOBAL_FONTS  = os.path.join(GLOBAL_DIR, 'fonts')
 GLOBAL_TEMPLATES = os.path.join(GLOBAL_DIR, 'templates')  # blank04, title_only, nav, toc
+GLOBAL_CONFIG = os.path.join(GLOBAL_DIR, 'config')
+BUILD_CONFIG_FILE = os.path.join(GLOBAL_CONFIG, 'build.json')  # default build profiles
 
 # ── XHTML templates ───────────────────────────────────────────────────────────
 BLANK_XHTML = """<?xml version='1.0' encoding='UTF-8'?>
@@ -101,29 +104,33 @@ def load_build_config(project_id):
     return default_build_config(project_id)
 
 def default_build_config(project_id):
-    """Generate a sensible default build config from the project's chapters."""
+    """Generate default build config from JSON config + project chapters.
+    
+    Loads default profiles (digital/print front/back matter) from global/config/build.json,
+    then populates chapters from project meta.json.
+    """
+    # Load JSON config
+    if not os.path.exists(BUILD_CONFIG_FILE):
+        raise ValueError(f"build.json not found at {BUILD_CONFIG_FILE}")
+    
+    with open(BUILD_CONFIG_FILE) as f:
+        config_data = json.load(f)
+    
+    # Load chapters from project metadata
     meta = load_meta(project_id)
     chapters = meta.get('chapters', [])
-    return {
-        'digital': {
-            'front_matter': [
-                {'id': 'cover_digital',  'label': 'Cover (digital)', 'type': 'titlepage',  'enabled': True},
-                {'id': 'credits_digital', 'label': 'Credits',     'type': 'credits',    'enabled': True},
-            ],
+    
+    # Build config from defaults + chapters
+    config = {}
+    for profile in ('digital', 'print'):
+        profile_defaults = config_data.get('profiles', {}).get(profile, {})
+        config[profile] = {
+            'front_matter': profile_defaults.get('front_matter', []),
             'chapters': [{'filename': c['filename'], 'name': c['name'], 'type': c['type']} for c in chapters],
-            'back_matter': [],
-        },
-        'print': {
-            'front_matter': [
-                {'id': 'title_only',        'label': 'Title only page',   'type': 'title_only',   'enabled': True},
-                {'id': 'credits_print',   'label': 'Credits',           'type': 'credits',      'enabled': True},
-                {'id': 'inside_cover_print',  'label': 'Inside cover (print)', 'type': 'titlepage',  'enabled': True},
-                {'id': 'taula',             'label': 'Table of contents', 'type': 'taula',        'enabled': True},
-            ],
-            'chapters': [{'filename': c['filename'], 'name': c['name'], 'type': c['type']} for c in chapters],
-            'back_matter': [],
-        },
-    }
+            'back_matter': profile_defaults.get('back_matter', []),
+        }
+    
+    return config
 
 def save_build_config(project_id, config):
     path = os.path.join(PROJECTS_DIR, project_id, 'build_config.json')
@@ -176,6 +183,91 @@ def fill_template(content, meta, cover_img=''):
     return content
 
 
+# ── XHTML Validation & CSS Extraction ─────────────────────────────────────────
+
+def validate_xhtml(content, filename=''):
+    """Validate that content is well-formed XHTML/XML.
+    
+    Args:
+        content: XHTML string to validate
+        filename: optional filename for error messages
+        
+    Raises:
+        ValueError: if XHTML is not valid XML
+    """
+    try:
+        etree.fromstring(content.encode('utf-8'), parser=etree.XMLParser(recover=False))
+    except etree.XMLSyntaxError as e:
+        raise ValueError(f"Invalid XHTML in {filename}: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"Error parsing XHTML in {filename}: {str(e)}")
+
+
+def extract_css_from_xhtml(content):
+    """Extract stylesheet filenames from XHTML <link> tags.
+    
+    Parses XHTML (assuming it's valid) and returns filenames from:
+    <link rel="stylesheet" href="../styles/filename.css" />
+    
+    Args:
+        content: XHTML string
+        
+    Returns:
+        set of CSS filenames (e.g., {'main.css', 'digital-credits.css'})
+    """
+    css_files = set()
+    try:
+        root = etree.fromstring(content.encode('utf-8'), parser=etree.XMLParser(recover=True))
+        # Find all <link rel="stylesheet"> elements in <head>
+        for link in root.findall('.//{http://www.w3.org/1999/xhtml}link[@rel="stylesheet"]'):
+            href = link.get('href', '').strip()
+            if href and '.css' in href:
+                # Extract filename from path: "../styles/main.css" → "main.css"
+                css_filename = href.split('/')[-1]
+                if css_filename:
+                    css_files.add(css_filename)
+    except Exception:
+        # If parsing fails, silently return empty set (validation already checked XHTML)
+        pass
+    return css_files
+
+
+def collect_and_validate_css(project_id, xhtml_dict):
+    """Scan all XHTML content for CSS refs, validate each exists in project.
+    
+    Args:
+        project_id: project directory name
+        xhtml_dict: dict of {filename: content} for all XHTML files that will be in EPUB
+        
+    Returns:
+        dict of {css_filename: full_path_on_disk}
+        
+    Raises:
+        ValueError: if any CSS file referenced but not found in project/styles/
+    """
+    # First, validate all XHTML
+    for filename, content in xhtml_dict.items():
+        validate_xhtml(content, filename)
+    
+    # Collect unique CSS filenames from all XHTML
+    css_files = set()
+    for content in xhtml_dict.values():
+        css_files.update(extract_css_from_xhtml(content))
+    
+    # Validate each CSS file exists in PROJECT (not global fallback)
+    styles_needed = {}
+    for css in sorted(css_files):
+        project_css_path = os.path.join(PROJECTS_DIR, project_id, 'styles', css)
+        if not os.path.exists(project_css_path):
+            raise ValueError(
+                f"CSS file not found in project: {css}\n"
+                f"Expected at: {project_css_path}"
+            )
+        styles_needed[css] = project_css_path
+    
+    return styles_needed
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @build_bp.route('/api/projects/<project_id>/build-config', methods=['GET'])
@@ -188,269 +280,145 @@ def save_build_config_route(project_id):
     save_build_config(project_id, config)
     return jsonify({'ok': True})
 
-@build_bp.route('/api/projects/<project_id>/build/epub', methods=['POST'])
-def build_epub(project_id):
-    """
-    Assemble and return an EPUB for the given profile.
-    Body: { "profile": "digital" | "print" }
-    """
-    profile = request.json.get('profile', 'digital')
-    if profile not in ('digital', 'print'):
-        return jsonify({'error': 'Invalid profile'}), 400
-
-    meta   = load_meta(project_id)
-    config = load_build_config(project_id)
-
+@build_bp.route('/api/projects/<project_id>/build/<profile>', methods=['POST'])
+def build_epub_route(project_id, profile):
+    """POST to build/{profile} triggers EPUB build and returns the file."""
     try:
-        epub_path = assemble_epub(project_id, meta, config, profile)
-        filename  = f"{project_id}_{profile}.epub"
-        return send_file(epub_path, as_attachment=True, download_name=filename,
-                         mimetype='application/epub+zip')
+        epub_path = build_epub(project_id, profile)
+        return send_file(epub_path, as_attachment=True, mimetype='application/epub+zip',
+                        download_name=f"{project_id}_{profile}.epub")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'ok': False, 'error': str(e)}), 400
 
-@build_bp.route('/api/projects/<project_id>/build/hyphenate', methods=['POST'])
-def hyphenate(project_id):
-    """Stub — hyphenation coming once calibre-debug setup is confirmed."""
-    return jsonify({'error': 'Hyphenation not yet implemented'}), 501
-
-@build_bp.route('/api/projects/<project_id>/build/convert-pdf', methods=['POST'])
-def convert_pdf(project_id):
-    """Stub — PDF conversion coming once Prince/ebook-convert setup is confirmed."""
-    return jsonify({'error': 'PDF conversion not yet implemented'}), 501
-
-
-# ── EPUB assembler ────────────────────────────────────────────────────────────
-
-def assemble_epub(project_id, meta, config, profile):
-    os.makedirs(BUILDS_DIR, exist_ok=True)
-
-    title     = meta.get('title', 'Untitled')
-    author    = meta.get('author', '')
-    language  = meta.get('language', 'ca')
-    book_uuid = str(uuid.uuid4()).upper()
-    book_id   = f"UUID:{book_uuid}"
-    now       = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    prof_config  = config[profile]
-    front_matter = [f for f in prof_config.get('front_matter', []) if f.get('enabled', True)]
-    chapters     = prof_config.get('chapters', [])
-    back_matter  = [f for f in prof_config.get('back_matter',  []) if f.get('enabled', True)]
-
-    is_print = (profile == 'print')
-
-    # Build spine item list: each entry is (epub_id, href, media_type, properties, content)
-    # content is the raw bytes/string to write into the zip
-    spine_items   = []   # ordered list of ids for spine
-    manifest_items = []  # all items for manifest
-    images_needed  = {}  # basename -> source path
-    styles_needed  = {}  # basename -> source path
-    fonts_needed   = {}  # basename -> source path
-
-    xhtml_dir = os.path.join(PROJECTS_DIR, project_id, 'xhtml')
-
-    # ── Determine CSS set ─────────────────────────────────────────────────────
-    # main.css inside the EPUB always maps to either digital.css or print.css
-    # (XHTML files link to ../styles/main.css — name is fixed inside EPUB)
-    main_css_name = 'print.css' if is_print else 'digital.css'
-    main_css_src  = get_project_file(project_id, 'styles', main_css_name)
-    if main_css_src:
-        styles_needed['main.css'] = main_css_src   # packaged as main.css inside EPUB
-
-    # credits.css — same pattern as main.css, pick profile version, package as credits.css
-    credits_css_name = 'print-credits.css' if is_print else 'digital-credits.css'
-    credits_css_src  = get_project_file(project_id, 'styles', credits_css_name)
-    if credits_css_src:
-        styles_needed['credits.css'] = credits_css_src
-
-    # Print-only extras
-    if is_print:
-        for css in ['book_big_title.css', 'taula.css']:
-            src = get_project_file(project_id, 'styles', css)
-            if src:
-                styles_needed[css] = src
-
-    # ── Determine font set (print only) ───────────────────────────────────────
-    # Scan global/fonts then project/fonts — project file wins over global for same name.
-    if is_print:
-        font_exts = {'.ttf', '.otf', '.woff', '.woff2'}
-        for fonts_dir in [GLOBAL_FONTS,
-                          os.path.join(PROJECTS_DIR, project_id, 'fonts')]:
-            if not os.path.isdir(fonts_dir):
-                continue
-            for fname in sorted(os.listdir(fonts_dir)):
-                if os.path.splitext(fname)[1].lower() in font_exts:
-                    fonts_needed[fname] = os.path.join(fonts_dir, fname)
-
-    # ── Collect cover image (from meta.json, EPUB only) ─────────────────────
-    cover_img = meta.get('cover_image', '') if not is_print else ''
-    # ── Load footnotes ────────────────────────────────────────────────────────
-    import json as _json
-    _fn_path = os.path.join(PROJECTS_DIR, project_id, 'footnotes.json')
-    footnotes = {}  # {int: str}
-    if os.path.exists(_fn_path):
-        with open(_fn_path, encoding='utf-8') as _f:
-            footnotes = {int(k): v for k, v in _json.load(_f).items()}
-
-    def apply_footnotes_print(content):
-        """Replace <!--fn:N--> or <!--fn:N:variant--> with Prince inline span."""
-        def _repl(m):
-            n       = int(m.group(1))
-            variant = m.group(2) if m.group(2) else 'def'
-            text    = footnotes.get(n, '[footnote %d not found]' % n)
-            return '<span class="fn %s">%s</span>' % (variant, text)
-        return re.sub(r'<!--fn:(\d+)(?::(\w+))?-->', _repl, content)
-
-    def apply_footnotes_digital(content):
-        """Replace <!--fn:N--> or <!--fn:N:variant--> with EPUB noteref link."""
-        def _repl(m):
-            n = int(m.group(1))
-            return ('<a epub:type="noteref" href="../text/footnotes.xhtml#fn%d">'
-                    '<sup>%d</sup></a>') % (n, n)
-        return re.sub(r'<!--fn:(\d+)(?::(\w+))?-->', _repl, content)
+@build_bp.route('/api/projects/<project_id>/download/<filename>', methods=['GET'])
+def download_epub(project_id, filename):
+    """Download an EPUB file."""
+    builds_dir = os.path.join(PROJECTS_DIR, project_id, 'epub')
+    if os.path.exists(os.path.join(builds_dir, filename)):
+        return send_file(os.path.join(builds_dir, filename), as_attachment=True)
+    # Try global builds dir
+    if os.path.exists(os.path.join(BUILDS_DIR, filename)):
+        return send_file(os.path.join(BUILDS_DIR, filename), as_attachment=True)
+    return jsonify({'ok': False}), 404
 
 
-    # ── Collect inline images from all XHTML files ────────────────────────────
-    def collect_images_from_xhtml(content):
-        """Find any src="images/..." references and queue them."""
-        import re
-        for m in re.findall(r'src=["\'](?:\.\./)?images/([^"\']+)["\']', content):
-            src = get_project_file(project_id, 'images', m)
-            if src:
-                images_needed[m] = src
+# ── EPUB Build Logic ──────────────────────────────────────────────────────────
 
-    # ── Build spine entries ───────────────────────────────────────────────────
-    item_counter = [1]
+def next_id():
+    """Generate unique EPUB-compliant ID for manifest items.
+    
+    IDs must start with a letter [A-Za-z] per EPUB spec.
+    Returns: "id" + 6 hex chars (e.g., "id94aa4a")
+    """
+    return 'id' + str(uuid.uuid4()).replace('-', '')[:6]
 
-    def next_id(prefix='id'):
-        i = item_counter[0]
-        item_counter[0] += 1
-        return f"{prefix}{i}"
-
-    def add_xhtml_item(item_id, href_name, content, properties=None, in_spine=True):
-        """Register an XHTML item in manifest + optionally spine."""
-        props_str = f' properties="{properties}"' if properties else ''
-        manifest_items.append({
-            'id':         item_id,
-            'href':       f'text/{href_name}',
-            'media_type': 'application/xhtml+xml',
-            'properties': properties,
-        })
-        if in_spine:
-            spine_items.append(item_id)
-        collect_images_from_xhtml(content)
-        return content
-
-    files_to_write = {}  # epub-internal path -> content (str or bytes)
-
-    # ── Front matter ──────────────────────────────────────────────────────────
-    blank_counter = [0]
-
-    def add_blank(count=1):
-        for _ in range(count):
-            blank_counter[0] += 1
-            bid = f"blank_{blank_counter[0]}"
-            iid = next_id('blank')
-            manifest_items.append({
-                'id': iid, 'href': f'text/{bid}.xhtml',
-                'media_type': 'application/xhtml+xml', 'properties': 'scripted',
-            })
-            spine_items.append(iid)
-            files_to_write[f'text/{bid}.xhtml'] = BLANK_XHTML
-
-    def add_xhtml_from_project(filename, epub_filename=None, properties=None):
-        """Load xhtml file (project override → global template), fill tokens, add to spine."""
-        if epub_filename is None:
-            epub_filename = filename
-        content = read_xhtml_file(project_id, filename)
-        if content is None:
-            content = f"""<?xml version='1.0' encoding='UTF-8'?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
-  <head><link rel="stylesheet" href="../styles/main.css" type="text/css"/>
-  <title>{filename}</title></head>
-  <body><p class="normalText"></p></body>
-</html>"""
-        content = fill_template(content, meta, cover_img)
+def build_epub(project_id, profile):
+    """Build EPUB for the given project and profile (digital or print).
+    
+    Process:
+    1. Load build config
+    2. Collect XHTML files (front matter, chapters, back matter, footnotes, nav)
+    3. Validate all XHTML is well-formed
+    4. Extract and validate CSS references from XHTML
+    5. Collect images and fonts
+    6. Assemble EPUB with manifest, spine, content.opf
+    
+    Args:
+        project_id: project directory name
+        profile: 'digital' or 'print'
+        
+    Returns:
+        path to built EPUB file
+        
+    Raises:
+        ValueError: if XHTML invalid, CSS missing, or config error
+    """
+    if profile not in ('digital', 'print'):
+        raise ValueError("Profile must be 'digital' or 'print'")
+    
+    is_print = profile == 'print'
+    
+    # Load config & metadata
+    meta = load_meta(project_id)
+    build_config = load_build_config(project_id)
+    prof = build_config.get(profile, {})
+    
+    title    = meta.get('title', 'Untitled')
+    author   = meta.get('author', 'Unknown')
+    language = meta.get('language', 'ca')
+    cover_img = meta.get('cover_image')
+    
+    # Prepare manifest & spine tracking
+    manifest_items = []
+    spine_items = []
+    files_to_write = {}  # path → content
+    styles_needed = {}   # css_filename → src_path
+    fonts_needed = {}    # font_filename → src_path
+    images_needed = {}   # img_filename → src_path
+    nav_entries = []     # (filename, display_name) tuples
+    
+    book_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    
+    # ── Collect all XHTML that will be in the build ────────────────────────────
+    all_xhtml_for_validation = {}  # {filename: content}
+    
+    def add_xhtml_from_project(section, item_id, section_name):
+        """Load XHTML and add to tracking."""
+        xhtml_file = f"{item_id}.xhtml"
+        xhtml = read_xhtml_file(project_id, xhtml_file)
+        if not xhtml:
+            raise ValueError(f"XHTML not found: {xhtml_file}")
+        filled = fill_template(xhtml, meta, cover_img)
+        all_xhtml_for_validation[xhtml_file] = filled
+        return xhtml_file, filled
+    
+    def add_xhtml_to_spine(xhtml_file, content, display_name):
+        """Add XHTML to spine and manifest."""
         iid = next_id()
-        manifest_items.append({'id': iid, 'href': f'text/{epub_filename}',
-                               'media_type': 'application/xhtml+xml', 'properties': properties})
-        spine_items.append(iid)
-        collect_images_from_xhtml(content)
-        files_to_write[f'text/{epub_filename}'] = content
-        return iid
-
-    if is_print:
-        add_blank(2)
-        for fm in front_matter:
-            ftype = fm.get('type')
-            fid   = fm.get('id')
-            if ftype == 'title_only':
-                add_xhtml_from_project('title_only.xhtml')
-            elif ftype == 'credits':
-                add_xhtml_from_project(f"{fid}.xhtml")
-            elif ftype == 'titlepage':
-                add_xhtml_from_project('inside_cover_print.xhtml', properties='scripted')
-                add_blank(1)
-            elif ftype == 'taula':
-                add_xhtml_from_project('taula.xhtml', properties='scripted')
-            else:
-                # custom / ded / prologue / etc
-                add_xhtml_from_project(f"{fid}.xhtml")
-
-    else:
-        for fm in front_matter:
-            ftype = fm.get('type')
-            fid   = fm.get('id')
-            if ftype == 'titlepage':
-                add_xhtml_from_project('cover_digital.xhtml')
-            elif ftype == 'credits':
-                add_xhtml_from_project(f"{fid}.xhtml")
-            else:
-                add_xhtml_from_project(f"{fid}.xhtml")
-
-    # ── Chapters ──────────────────────────────────────────────────────────────
-    nav_entries = []  # (filename, name) for nav/toc
-    digital_fn_refs = []  # ordered list of fn numbers referenced (digital only)
-
-    for ch in chapters:
-        fname   = ch['filename']
-        ch_name = ch.get('name', fname)
-        content = read_xhtml_file(project_id, fname)
-        if content is None:
-            continue
-        if is_print:
-            content = apply_footnotes_print(content)
-        else:
-            for m in re.finditer(r'<!--fn:(\d+)(?::(\w+))?-->', content):
-                n = int(m.group(1))
-                if n not in digital_fn_refs:
-                    digital_fn_refs.append(n)
-            content = apply_footnotes_digital(content)
-        iid = next_id()
-        manifest_items.append({'id': iid, 'href': f'text/{fname}',
+        manifest_items.append({'id': iid, 'href': f'text/{xhtml_file}',
                                 'media_type': 'application/xhtml+xml', 'properties': None})
         spine_items.append(iid)
-        files_to_write[f'text/{fname}'] = content
-        collect_images_from_xhtml(content)
-        nav_entries.append((fname, ch_name))
-
-    # ── footnotes.xhtml (digital only) ───────────────────────────────────────
-    if not is_print and digital_fn_refs and footnotes:
-        fn_items = ''
-        for n in digital_fn_refs:
-            text = footnotes.get(n, '')
-            fn_items += (
-                '      <li id="fn%d" epub:type="footnote">\n'
-                '        <p class="note"><a href="#fn%d-ref">%d.</a> %s</p>\n'
-                '      </li>\n'
-            ) % (n, n, n, text)
+        files_to_write[f'text/{xhtml_file}'] = content
+        nav_entries.append((xhtml_file, display_name))
+        return iid
+    
+    # Add front matter
+    front_matter = prof.get('front_matter', [])
+    for fm in front_matter:
+        fid = fm.get('filename') or fm.get('id')
+        if fid:
+            fname, content = add_xhtml_from_project('front', fid.replace('.xhtml', ''), fid)
+            add_xhtml_to_spine(fname, content, fm.get('label', fid))
+    
+    # Add chapters
+    chapters = prof.get('chapters', [])
+    for ch in chapters:
+        fname, content = add_xhtml_from_project('chapter', ch['filename'].replace('.xhtml', ''), ch['filename'])
+        add_xhtml_to_spine(fname, content, ch.get('name', fname))
+    
+    # Add footnotes if any
+    footnotes = meta.get('footnotes', {})
+    if footnotes:
+        # Validate footnotes.css exists in project
+        fn_css_path = os.path.join(PROJECTS_DIR, project_id, 'styles', 'footnotes.css')
+        if not os.path.exists(fn_css_path):
+            raise ValueError(
+                f"Footnotes exist but footnotes.css not found in project.\n"
+                f"Expected at: {fn_css_path}"
+            )
+        all_xhtml_for_validation['footnotes.xhtml'] = (
+            '<?xml version="1.0"?>'
+            '<html xmlns="http://www.w3.org/1999/xhtml">'
+            '<head><link rel="stylesheet" href="../styles/footnotes.css"/></head>'
+            '<body></body></html>'
+        )
+        fn_items = '\n'.join(f'      <li id="fn{n}">{_esc(text)}</li>' for n, text in footnotes.items())
         fn_xhtml = (
-            "<?xml version='1.0' encoding='UTF-8'?>\n"
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
             '  <head>\n'
-            '    <link rel="stylesheet" href="../styles/main.css" type="text/css"/>\n'
+            '    <link rel="stylesheet" href="../styles/footnotes.css" type="text/css"/>\n'
             '    <title>Notes</title>\n'
             '    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n'
             '  </head>\n'
@@ -462,23 +430,24 @@ def assemble_epub(project_id, meta, config, profile):
             '  </body>\n'
             '</html>'
         )
+        all_xhtml_for_validation['footnotes.xhtml'] = fn_xhtml
         fn_iid = next_id()
         manifest_items.append({'id': fn_iid, 'href': 'text/footnotes.xhtml',
                                 'media_type': 'application/xhtml+xml', 'properties': None})
         spine_items.append(fn_iid)
         files_to_write['text/footnotes.xhtml'] = fn_xhtml
-
-    # ── Back matter ───────────────────────────────────────────────────────────
+    
+    # Add back matter
+    back_matter = prof.get('back_matter', [])
     for bm in back_matter:
-        fid = bm.get('id')
-        if fid:
-            add_xhtml_from_project('back', fid, fid)
-
-    # For print, add closing blanks around back matter
-    if is_print and back_matter:
-        # wrap back matter with blanks (handled above by add_blank calls if needed)
-        pass
-
+        bid = bm.get('filename') or bm.get('id')
+        if bid:
+            fname, content = add_xhtml_from_project('back', bid.replace('.xhtml', ''), bid)
+            add_xhtml_to_spine(fname, content, bm.get('label', bid))
+    
+    # ── Validate all XHTML and extract CSS ──────────────────────────────────────
+    styles_needed = collect_and_validate_css(project_id, all_xhtml_for_validation)
+    
     # ── nav.xhtml ─────────────────────────────────────────────────────────────
     nav_items_str = '\n'.join(
         f'        <li><a href="{fname}">{_esc(name)}</a></li>'
@@ -488,7 +457,7 @@ def assemble_epub(project_id, meta, config, profile):
     manifest_items.append({'id': 'nav', 'href': 'text/nav.xhtml',
                            'media_type': 'application/xhtml+xml', 'properties': 'nav'})
     files_to_write['text/nav.xhtml'] = nav_content
-
+    
     # ── toc.ncx ───────────────────────────────────────────────────────────────
     nav_points_str = ''
     for i, (fname, name) in enumerate(nav_entries, 1):
@@ -501,39 +470,88 @@ def assemble_epub(project_id, meta, config, profile):
     manifest_items.append({'id': 'ncx', 'href': 'toc.ncx',
                            'media_type': 'application/x-dtbncx+xml', 'properties': None})
     files_to_write['toc.ncx'] = toc_content
-
+    
     # ── CSS manifest entries ──────────────────────────────────────────────────
-    css_ids = {'main.css': 'style001.css'}
-    for css in css_files:
-        cid = css_ids.get(css, css.replace('.', '_').replace('-', '_'))
-        if css in styles_needed:
-            manifest_items.append({'id': cid, 'href': f'styles/{css}',
-                                   'media_type': 'text/css', 'properties': None})
-
+    for css in sorted(styles_needed.keys()):
+        cid = css.replace('.', '_').replace('-', '_')
+        manifest_items.append({'id': cid, 'href': f'styles/{css}',
+                               'media_type': 'text/css', 'properties': None})
+    
+    # ── Collect images from XHTML ─────────────────────────────────────────────
+    for content in all_xhtml_for_validation.values():
+        try:
+            root = etree.fromstring(content.encode('utf-8'), parser=etree.XMLParser(recover=True))
+            for img in root.findall('.//{http://www.w3.org/1999/xhtml}img'):
+                src = img.get('src', '').strip()
+                if src and '..' in src:
+                    # Extract filename: "../images/image.jpg" → "image.jpg"
+                    img_filename = src.split('/')[-1]
+                    if img_filename:
+                        img_src = get_project_file(project_id, 'images', img_filename)
+                        if img_src:
+                            images_needed[img_filename] = img_src
+        except Exception:
+            pass
+    
+    # ── Collect fonts from project ────────────────────────────────────────────
+    project_fonts_dir = os.path.join(PROJECTS_DIR, project_id, 'fonts')
+    if os.path.isdir(project_fonts_dir):
+        for font in os.listdir(project_fonts_dir):
+            if font.endswith(('.ttf', '.otf', '.woff', '.woff2')):
+                fonts_needed[font] = os.path.join(project_fonts_dir, font)
+    
     # ── Font manifest entries ─────────────────────────────────────────────────
-    font_mime = {'ttf': 'application/vnd.ms-opentype', 'otf': 'application/vnd.ms-opentype'}
-    for i, font in enumerate(fonts_needed):
+    font_mime = {'ttf': 'application/vnd.ms-opentype', 'otf': 'application/vnd.ms-opentype',
+                 'woff': 'application/font-woff', 'woff2': 'application/font-woff2'}
+    for i, font in enumerate(sorted(fonts_needed.keys())):
         ext = font.rsplit('.', 1)[-1].lower()
         manifest_items.append({'id': f'font{i}', 'href': f'fonts/{font}',
                                'media_type': font_mime.get(ext, 'application/octet-stream'),
                                'properties': None})
-
+    
     # ── Image manifest entries ────────────────────────────────────────────────
     img_mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif'}
-    for i, img in enumerate(images_needed):
+    
+    # Cover image (with cover-image property, never in spine)
+    if cover_img:
+        cover_src = get_project_file(project_id, 'images', cover_img)
+        if cover_src:
+            ext  = cover_img.rsplit('.', 1)[-1].lower()
+            mime = img_mime.get(ext, 'image/jpeg')
+            manifest_items.append({'id': 'cover', 'href': f'images/{cover_img}',
+                                   'media_type': mime, 'properties': 'cover-image'})
+            images_needed[cover_img] = cover_src
+    
+    # Other images
+    for i, img in enumerate(sorted(images_needed.keys())):
+        if cover_img and img == cover_img:
+            continue
         ext  = img.rsplit('.', 1)[-1].lower()
         mime = img_mime.get(ext, 'image/jpeg')
-        props = 'cover-image' if (not is_print and cover_img and img == cover_img) else None
-        iid   = 'cover' if (not is_print and img == cover_img) else f'img{i}'
-        manifest_items.append({'id': iid, 'href': f'images/{img}',
-                               'media_type': mime, 'properties': props})
-
+        manifest_items.append({'id': f'img{i}', 'href': f'images/{img}',
+                               'media_type': mime, 'properties': None})
+    
     # ── content.opf ──────────────────────────────────────────────────────────
-    opf = _build_opf(book_id, title, author, language, now, manifest_items, spine_items, is_print)
+    opf = _build_opf(book_id, title, author, language, now, manifest_items, spine_items, is_print, cover_img)
     files_to_write['content.opf'] = opf
-
+    
     # ── Write EPUB zip ────────────────────────────────────────────────────────
-    epub_path = os.path.join(BUILDS_DIR, f"{project_id}_{profile}.epub")
+    if is_print:
+        epub_dir = os.path.join(PROJECTS_DIR, project_id, 'epub')
+        os.makedirs(epub_dir, exist_ok=True)
+        # Find next version number
+        existing = [f for f in os.listdir(epub_dir) if f.endswith('_print.epub') or '_print_v' in f]
+        max_v = 0
+        for fname in existing:
+            m = re.search(r'_print_v(\d+)\.epub$', fname)
+            if m:
+                max_v = max(max_v, int(m.group(1)))
+        next_v    = max_v + 1
+        epub_path = os.path.join(epub_dir, f"{project_id}_print_v{next_v}.epub")
+    else:
+        os.makedirs(BUILDS_DIR, exist_ok=True)
+        epub_path = os.path.join(BUILDS_DIR, f"{project_id}_digital.epub")
+    
     with zipfile.ZipFile(epub_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         # mimetype must be first and uncompressed
         zf.writestr(zipfile.ZipInfo('mimetype'), 'application/epub+zip',
@@ -551,25 +569,26 @@ def assemble_epub(project_id, meta, config, profile):
                 zf.writestr(f'OEBPS/{path}', content.encode('utf-8'))
             else:
                 zf.writestr(f'OEBPS/{path}', content)
-        # CSS files
+        # CSS files (original names, no mapping)
         for css, src_path in styles_needed.items():
             with open(src_path, 'rb') as f:
                 zf.writestr(f'OEBPS/styles/{css}', f.read())
         # Font files
-        for font, src_path in fonts_needed.items():
+        for font, src_path in sorted(fonts_needed.items()):
             with open(src_path, 'rb') as f:
                 zf.writestr(f'OEBPS/fonts/{font}', f.read())
         # Images
-        for img, src_path in images_needed.items():
+        for img, src_path in sorted(images_needed.items()):
             with open(src_path, 'rb') as f:
                 zf.writestr(f'OEBPS/images/{img}', f.read())
-
+    
     return epub_path
 
 
 # ── OPF / container builders ──────────────────────────────────────────────────
 
-def _build_opf(book_id, title, author, language, modified, manifest_items, spine_items, is_print):
+def _build_opf(book_id, title, author, language, modified, manifest_items, spine_items, is_print, cover_img=None):
+    """Build content.opf manifest and spine."""
     manifest_lines = []
     for item in manifest_items:
         props = f' properties="{item["properties"]}"' if item.get('properties') else ''
@@ -579,6 +598,16 @@ def _build_opf(book_id, title, author, language, modified, manifest_items, spine
         )
 
     spine_lines = [f'    <itemref idref="{sid}"/>' for sid in spine_items]
+    
+    # Format timestamp: CCYY-MM-DDThh:mm:ssZ (remove microseconds, add Z for UTC)
+    # Input: 2026-03-06T23:37:51.927718 → Output: 2026-03-06T23:37:51Z
+    if '.' in modified:
+        timestamp = modified.split('.')[0] + 'Z'
+    else:
+        timestamp = modified.rstrip('Z') + 'Z'
+    
+    # Cover metadata (if cover image exists)
+    cover_meta = '    <meta name="cover" content="cover"/>\n' if cover_img else ''
 
     return f"""<?xml version='1.0' encoding='utf-8'?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="3.0">
@@ -591,8 +620,8 @@ def _build_opf(book_id, title, author, language, modified, manifest_items, spine
     <dc:publisher>BonPort</dc:publisher>
     <meta refines="#id-1" property="title-type">main</meta>
     <meta refines="#id-2" property="role" scheme="marc:relators">aut</meta>
-    <meta property="dcterms:modified" scheme="dcterms:W3CDTF">{modified}</meta>
-  </metadata>
+    <meta property="dcterms:modified" scheme="dcterms:W3CDTF">{timestamp}</meta>
+{cover_meta}  </metadata>
   <manifest>
 {chr(10).join(manifest_lines)}
   </manifest>
@@ -602,6 +631,7 @@ def _build_opf(book_id, title, author, language, modified, manifest_items, spine
 </package>"""
 
 def _container_xml():
+    """Build META-INF/container.xml."""
     return """<?xml version='1.0' encoding='UTF-8'?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles>
@@ -610,4 +640,5 @@ def _container_xml():
 </container>"""
 
 def _esc(s):
+    """XML escape helper."""
     return str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')

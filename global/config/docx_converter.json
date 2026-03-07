@@ -1,0 +1,68 @@
+{
+  "xhtml": {
+    "declaration": "<?xml version='1.0' encoding='UTF-8'?>",
+    "namespaces": {
+      "html": "http://www.w3.org/1999/xhtml",
+      "epub": "http://www.idpf.org/2007/ops"
+    },
+    "meta": {
+      "content_type": "text/html; charset=utf-8"
+    },
+    "stylesheet": {
+      "rel": "stylesheet",
+      "type": "text/css",
+      "default_file": "main.css"
+    },
+    "closing_tags": "\n</body>\n</html>"
+  },
+  
+  "paths": {
+    "styles_relative": "../styles/",
+    "images_relative": "../images/"
+  },
+  
+  "heading_map": {
+    "Heading 1": {
+      "tag": "h1",
+      "class": "heading1"
+    },
+    "Heading 2": {
+      "tag": "h2",
+      "class": "heading2"
+    },
+    "Heading 3": {
+      "tag": "h3",
+      "class": "heading3"
+    }
+  },
+  
+  "paragraph": {
+    "default_class": "normalText",
+    "skip_empty": true
+  },
+  
+  "images": {
+    "filename_prefix": "img_",
+    "generate_uuid": true,
+    "uuid_length": 8,
+    "supported_formats": ["PNG", "JPEG", "GIF", "WEBP"],
+    "fallback_format": "PNG",
+    "alt_text_default": "image"
+  },
+  
+  "escaping": {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;"
+  },
+  
+  "messages": {
+    "errors": {
+      "image_processing": "Warning: Could not process image: {error}"
+    },
+    "cli": {
+      "usage": "Usage: python3 docx_converter.py input.docx output_dir [title]",
+      "success": "Done. XHTML saved to {filepath}"
+    }
+  }
+}

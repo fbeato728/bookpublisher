@@ -1,0 +1,50 @@
+{
+  "profiles": {
+    "digital": {
+      "front_matter": [
+        {
+          "id": "cover_digital",
+          "label": "Cover (digital)",
+          "type": "titlepage",
+          "enabled": true
+        },
+        {
+          "id": "credits_digital",
+          "label": "Credits",
+          "type": "credits",
+          "enabled": true
+        }
+      ],
+      "back_matter": []
+    },
+    "print": {
+      "front_matter": [
+        {
+          "id": "title_only",
+          "label": "Title only page",
+          "type": "title_only",
+          "enabled": true
+        },
+        {
+          "id": "credits_print",
+          "label": "Credits",
+          "type": "credits",
+          "enabled": true
+        },
+        {
+          "id": "inside_cover_print",
+          "label": "Inside cover (print)",
+          "type": "titlepage",
+          "enabled": true
+        },
+        {
+          "id": "taula",
+          "label": "Table of contents",
+          "type": "taula",
+          "enabled": true
+        }
+      ],
+      "back_matter": []
+    }
+  }
+}
