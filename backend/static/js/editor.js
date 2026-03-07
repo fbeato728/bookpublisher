@@ -480,7 +480,7 @@ function togglePreviewMode() {
   console.log('Preview mode:', previewMode);
   if (previewVisible) refreshPreview();
 }
-let currentStylesheet = '../styles/main.css'; // Store stylesheet href from loaded file
+// currentStylesheet lives in globals.js (written from projects.js)
 
 function debounce(fn, ms) {
   let t;

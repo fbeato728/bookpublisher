@@ -1,7 +1,6 @@
 'use strict';
 
 // ── Build panel ───────────────────────────────────────────────────────────────
-let buildConfig   = null;
 let buildProfile  = 'digital';
 
 const BUILD_DEFAULTS = {
@@ -143,8 +142,7 @@ function renderBuildList(containerId, items, section) {
 }
 
 // ── Chapter list state ────────────────────────────────────────────────────────
-let chaptersDirty    = false;
-let chaptersEditing  = [];   // working copy while editing
+// chaptersDirty and chaptersEditing live in globals.js (written from projects.js)
 
 function markChaptersDirty() {
   chaptersDirty = true;
