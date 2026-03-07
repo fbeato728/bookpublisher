@@ -1,13 +1,5 @@
 'use strict';
 
-// ── Monaco init ─────────────────────────────────────────────────────────────
-function initMonaco(cb) {
-  if (monacoReady) { cb(); return; }
-  if (window.monacoFailed) { cb(new Error('Monaco not available')); return; }
-  require.config({ paths: { vs: window.monacoBase } });
-  require(['vs/editor/editor.main'], () => { monacoReady = true; cb(); });
-}
-
 // ── Navigation ───────────────────────────────────────────────────────────────
 function showPanel(name) {
   if (name !== 'editor' && previewVisible) togglePreviewPane();
