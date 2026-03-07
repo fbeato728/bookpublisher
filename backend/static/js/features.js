@@ -34,11 +34,7 @@ async function checkGrammar() {
   btn.innerHTML = '<span class="spinner"></span> Checking'; btn.disabled = true;
   setEditorStatus('Checking grammar…', ''); hideLtPopover();
   try {
-    const res  = await fetch(`${API}/check`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ text, language: document.getElementById('lt-lang').value, project_id: currentProject?.id || '' })
-    });
-    const data = await res.json();
+    const data = await apiFetch('POST', '/check', { text, language: document.getElementById('lt-lang').value, project_id: currentProject?.id || '' });
     if (data.error) { setEditorStatus('⚠ ' + data.error, 'err'); return; }
     ltMatches = Array.isArray(data) ? data : [];
     applyLtMarks(ltMatches);
@@ -207,16 +203,14 @@ let selectedFnVariant = 'def';  // active variant in insert dialog
 
 async function loadFootnotes() {
   if (!currentProject) return;
-  const res = await fetch(`${API}/projects/${currentProject.id}/footnotes`);
-  if (!res.ok) return;
-  const data = await res.json();
+  let data;
+  try { data = await apiFetch('GET', `/projects/${currentProject.id}/footnotes`); }
+  catch { return; }
   projectFootnotes = data.footnotes || [];
   // Also load variants from build-config if not already cached
   if (!buildConfig) {
-    try {
-      const bcRes = await fetch(`${API}/projects/${currentProject.id}/build-config`);
-      buildConfig = await bcRes.json();
-    } catch(e) { buildConfig = null; }
+    try { buildConfig = await apiFetch('GET', `/projects/${currentProject.id}/build-config`); }
+    catch(e) { buildConfig = null; }
   }
   projectFnVariants = (buildConfig && buildConfig.fn_variants) || [];
   renderFnVariants();
@@ -277,11 +271,10 @@ async function uploadFootnotes(input) {
   if (!input.files.length || !currentProject) return;
   const formData = new FormData();
   formData.append('file', input.files[0]);
-  const res = await fetch(`${API}/projects/${currentProject.id}/footnotes`, {
-    method: 'POST', body: formData
-  });
+  let data;
+  try { data = await apiFetch('POST', `/projects/${currentProject.id}/footnotes`, formData); }
+  catch(e) { input.value = ''; alert(e.message || 'Upload failed'); return; }
   input.value = '';
-  const data = await res.json();
   if (data.ok) {
     projectFootnotes = data.footnotes || [];
     updateFootnoteUI();
@@ -292,7 +285,7 @@ async function uploadFootnotes(input) {
 
 async function deleteFootnotes() {
   if (!currentProject || !confirm('Remove footnotes from this project?')) return;
-  await fetch(`${API}/projects/${currentProject.id}/footnotes`, { method: 'DELETE' });
+  try { await apiFetch('DELETE', `/projects/${currentProject.id}/footnotes`); } catch {}
   projectFootnotes = [];
   updateFootnoteUI();
 }
@@ -392,9 +385,9 @@ function insertFootnoteRef(n, variant) {
 // ── Image manager ─────────────────────────────────────────────────────────────
 async function loadImageList() {
   if (!currentProject) return;
-  const res  = await fetch(`${API}/projects/${currentProject.id}/images`);
-  if (!res.ok) return;
-  const data = await res.json();
+  let data;
+  try { data = await apiFetch('GET', `/projects/${currentProject.id}/images`); }
+  catch { return; }
   renderImageList(data.images || [], {
     cover_image:          data.cover_image          || null,
     digital_inside_cover: data.digital_inside_cover || null,
@@ -437,49 +430,36 @@ async function uploadImage(input) {
   if (!input.files.length || !currentProject) return;
   const formData = new FormData();
   formData.append('file', input.files[0]);
-  const res = await fetch(`${API}/projects/${currentProject.id}/images`, {
-    method: 'POST', body: formData
-  });
+  try { await apiFetch('POST', `/projects/${currentProject.id}/images`, formData); }
+  catch {}
   input.value = '';
-  if (res.ok) loadImageList();
+  loadImageList();
 }
 
 async function deleteImage(filename) {
   if (!confirm(`Delete ${filename}?`)) return;
-  await fetch(`${API}/projects/${currentProject.id}/images/${filename}`, { method: 'DELETE' });
+  try { await apiFetch('DELETE', `/projects/${currentProject.id}/images/${filename}`); } catch {}
   loadImageList();
 }
 
 async function setCoverImage(filename, field, isAlreadySet) {
   const newVal = isAlreadySet ? null : filename;
-  await fetch(`${API}/projects/${currentProject.id}/cover-image`, {
-    method: 'PUT', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ filename: newVal, field })
-  });
+  try { await apiFetch('PUT', `/projects/${currentProject.id}/cover-image`, { filename: newVal, field }); } catch {}
   loadImageList();
 }
 
 async function saveMetaField(field, value) {
   if (!currentProject) return;
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}`, {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ [field]: value }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      currentProject = { ...currentProject, ...data.meta };
-    }
+    const data = await apiFetch('PATCH', `/projects/${currentProject.id}`, { [field]: value });
+    currentProject = { ...currentProject, ...data.meta };
   } catch(e) { console.error('saveMetaField:', e); }
 }
 
 async function saveBuildConfig() {
   if (!currentProject || !buildConfig) return;
   try {
-    await fetch(`${API}/projects/${currentProject.id}/build-config`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(buildConfig),
-    });
+    await apiFetch('POST', `/projects/${currentProject.id}/build-config`, buildConfig);
   } catch(e) { console.error('saveBuildConfig:', e); }
 }
 
@@ -499,14 +479,12 @@ async function buildEpub() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Building…';
   showStatus('build-action-status', `Building ${buildProfile} EPUB…`, 'info');
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/build/${buildProfile}`, {
-      method: 'POST',
-    });
+    // binary response — not apiFetch
+    const res = await fetch(`${API}/projects/${currentProject.id}/build/${buildProfile}`, { method: 'POST' });
     if (!res.ok) {
       const data = await res.json();
       showStatus('build-action-status', '✗ ' + (data.error || 'Build failed'), 'err'); return;
     }
-    // Both digital and print return binary EPUB file
     const blob = await res.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -526,9 +504,8 @@ async function hyphenateChapters() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Hyphenating…';
   showStatus('build-action-status', 'Hyphenating chapters…', 'info');
   try {
-    const res  = await fetch(`${API}/projects/${currentProject.id}/hyphenate`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/hyphenate`);
+    if (!data.ok) {
       showStatus('build-action-status', '✗ ' + (data.error || 'Hyphenation failed'), 'err'); return;
     }
     const n   = data.processed.length;
@@ -554,9 +531,8 @@ async function dehyphenateChapters() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Removing…';
   showStatus('build-action-status', 'Removing soft hyphens…', 'info');
   try {
-    const res  = await fetch(`${API}/projects/${currentProject.id}/dehyphenate`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/dehyphenate`);
+    if (!data.ok) {
       showStatus('build-action-status', '✗ ' + (data.error || 'Failed'), 'err'); return;
     }
     const n   = data.processed.length;
@@ -648,8 +624,7 @@ let ignoreWords = [];
 async function loadIgnoreWords() {
   if (!currentProject) return;
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/ignore-words`);
-    ignoreWords = await res.json();
+    ignoreWords = await apiFetch('GET', `/projects/${currentProject.id}/ignore-words`);
     renderIgnoreList();
   } catch(e) { console.error('loadIgnoreWords:', e); }
 }
@@ -689,10 +664,7 @@ async function ignoreCurrentWord() {
 async function addIgnoreWord(word) {
   if (!currentProject) return;
   try {
-    await fetch(`${API}/projects/${currentProject.id}/ignore-words`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ word }),
-    });
+    await apiFetch('POST', `/projects/${currentProject.id}/ignore-words`, { word });
     await loadIgnoreWords();
   } catch(e) { console.error('addIgnoreWord:', e); }
 }
@@ -700,9 +672,7 @@ async function addIgnoreWord(word) {
 async function removeIgnoreWord(word) {
   if (!currentProject) return;
   try {
-    await fetch(`${API}/projects/${currentProject.id}/ignore-words/${encodeURIComponent(word)}`, {
-      method: 'DELETE',
-    });
+    await apiFetch('DELETE', `/projects/${currentProject.id}/ignore-words/${encodeURIComponent(word)}`);
     await loadIgnoreWords();
   } catch(e) { console.error('removeIgnoreWord:', e); }
 }

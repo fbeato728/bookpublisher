@@ -36,8 +36,7 @@ function setBuildProfile(profile) {
 async function loadBuildConfig() {
   if (!currentProject) return;
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/build-config`);
-    buildConfig = await res.json();
+    buildConfig = await apiFetch('GET', `/projects/${currentProject.id}/build-config`);
     normalizeBuildConfig(buildConfig);
   } catch(e) { buildConfig = null; }
   renderBuildPanel();
@@ -276,11 +275,7 @@ async function saveChapters() {
   const toDelete     = currentChaps.filter(c => !desiredSet.has(c.filename)).map(c => c.filename);
 
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/chapters/sync`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ chapters: desired, delete: toDelete }),
-    });
-    if (!res.ok) { const e = await res.json(); showStatus('build-status', '✗ ' + e.error, 'err'); return; }
+    await apiFetch('POST', `/projects/${currentProject.id}/chapters/sync`, { chapters: desired, delete: toDelete });
 
     // Update both profiles in buildConfig
     ['digital', 'print'].forEach(p => { buildConfig[p].chapters = desired.map(ch => ({ ...ch, enabled: true })); });
@@ -303,11 +298,7 @@ async function addBuildChapter() {
 
   // Create the file on disk now so it exists when Save is clicked
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/chapters`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ filename, name: name.trim(), type: typeVal }),
-    });
-    if (!res.ok) { const e = await res.json(); showStatus('build-status', '✗ ' + e.error, 'err'); return; }
+    await apiFetch('POST', `/projects/${currentProject.id}/chapters`, { filename, name: name.trim(), type: typeVal });
   } catch(e) { showStatus('build-status', '✗ ' + e.message, 'err'); return; }
 
   chaptersEditing.push({ filename, name: name.trim(), type: typeVal, enabled: true });
@@ -322,11 +313,7 @@ async function addNewCss() {
   if (!name || !name.trim()) return;
   const filename = name.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-') + '.css';
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/styles`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ filename }),
-    });
-    if (!res.ok) { const e = await res.json(); showStatus('build-action-status', '✗ ' + e.error, 'err'); return; }
+    await apiFetch('POST', `/projects/${currentProject.id}/styles`, { filename });
     showStatus('build-action-status', `✓ ${filename} created — open in Editor`, 'ok');
   } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
 }
@@ -412,35 +399,26 @@ async function addBuildItem(section) {
   
   const key      = section === 'front' ? 'front_matter' : 'back_matter';
   try {
-    console.log('addBuildItem: checking if file exists at', `${API}/projects/${currentProject.id}/xhtml/${cleanFilename}`);
-    const check = await fetch(`${API}/projects/${currentProject.id}/xhtml/${cleanFilename}`);
-    console.log('addBuildItem: check response status', check.status);
-    
-    if (!check.ok) {
+    console.log('addBuildItem: checking if file exists at', `/projects/${currentProject.id}/xhtml/${cleanFilename}`);
+    try {
+      await apiFetch('GET', `/projects/${currentProject.id}/xhtml/${cleanFilename}`);
+      console.log('addBuildItem: file already exists');
+    } catch {
       console.log('addBuildItem: file does not exist, attempting to create...');
-      const createUrl = `${API}/projects/${currentProject.id}/xhtml/${cleanFilename}`;
-      console.log('addBuildItem: POST to', createUrl);
-      
-      const create = await fetch(createUrl, { method: 'POST' });
-      console.log('addBuildItem: POST response status', create.status, 'ok:', create.ok);
-      
-      if (!create.ok) {
-        const err = await create.json();
-        console.error('addBuildItem: POST response error', err);
-        if (err.error !== 'File already exists') {
-          showStatus('build-status', '✗ Could not create file: ' + err.error, 'err'); 
+      try {
+        const createData = await apiFetch('POST', `/projects/${currentProject.id}/xhtml/${cleanFilename}`);
+        console.log('addBuildItem: file created successfully, response:', createData);
+      } catch(createErr) {
+        console.error('addBuildItem: POST response error', createErr);
+        if (!createErr.message.includes('File already exists')) {
+          showStatus('build-status', '✗ Could not create file: ' + createErr.message, 'err');
           return;
         }
-      } else {
-        const createData = await create.json();
-        console.log('addBuildItem: file created successfully, response:', createData);
       }
-    } else {
-      console.log('addBuildItem: file already exists');
     }
-  } catch(e) { 
+  } catch(e) {
     console.error('addBuildItem: fetch error', e);
-    showStatus('build-status', '✗ ' + e.message, 'err'); return; 
+    showStatus('build-status', '✗ ' + e.message, 'err'); return;
   }
   
   console.log('addBuildItem: adding to buildConfig');
@@ -475,17 +453,15 @@ async function previewBuildItem(item) {
   body.innerHTML = '<span style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">Loading…</span>';
 
   try {
-    const res = await fetch(`${API}/projects/${currentProject.id}/xhtml/${filename}?t=${Date.now()}`);
-    console.log('previewBuildItem: fetch status', res.status);
-    
-    if (!res.ok) {
-      // File not found or error - show message but keep the button visible
-      console.warn('previewBuildItem: file not found or error', res.status);
+    let data;
+    try {
+      data = await apiFetch('GET', `/projects/${currentProject.id}/xhtml/${filename}?t=${Date.now()}`);
+    } catch {
+      console.warn('previewBuildItem: file not found or error');
       body.innerHTML = `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--accent)">⚠ File not found: ${escHtml(filename)}</p>`;
       document.getElementById('btn-build-preview-edit').style.display = '';
       return;
     }
-    const data   = await res.json();
     const parser = new DOMParser();
     const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
     const bel    = doc.querySelector('body');
@@ -524,7 +500,7 @@ async function previewBuildItem(item) {
 
 async function showBuildFilePicker(item, body) {
   let files = [];
-  try { const res = await fetch(`${API}/projects/${currentProject.id}/xhtml`); files = await res.json(); } catch(e) {}
+  try { files = await apiFetch('GET', `/projects/${currentProject.id}/xhtml`); } catch(e) {}
   
   // Handle both new format (filename) and old format (id)
   const filename = item.filename || (item.id ? (item.id.endsWith('.xhtml') ? item.id : item.id + '.xhtml') : null);
@@ -599,22 +575,13 @@ async function openBuildItemInEditor() {
   ltMatches = []; isDirty = false; fileIsHyphenated = false;
 
   const isCss = buildPreviewFile.endsWith('.css');
-  const url = isCss ? `${API}/projects/${currentProject.id}/styles/${buildPreviewFile}`
-                    : `${API}/projects/${currentProject.id}/xhtml/${buildPreviewFile}`;
+  const openPath = isCss ? `/projects/${currentProject.id}/styles/${buildPreviewFile}`
+                         : `/projects/${currentProject.id}/xhtml/${buildPreviewFile}`;
 
-  console.log('openBuildItemInEditor: fetching from', url);
+  console.log('openBuildItemInEditor: fetching from', openPath);
 
   try {
-    const res  = await fetch(url + '?t=' + Date.now());
-    console.log('openBuildItemInEditor: fetch status', res.status);
-    
-    if (!res.ok) {
-      setEditorStatus(`✗ File not found (${res.status})`, 'err');
-      console.error('openBuildItemInEditor: fetch failed', res.status);
-      return;
-    }
-    
-    const data = await res.json();
+    const data = await apiFetch('GET', `${openPath}?t=${Date.now()}`);
 
     if (isCss) {
       // CSS opens in code mode

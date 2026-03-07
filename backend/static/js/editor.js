@@ -10,8 +10,8 @@ async function loadFullXhtml() {
 
   // Check for existing chapter files and show warning banner
   try {
-    const chRes = await fetch(`${API}/projects/${currentProject.id}/chapters`);
-    const existingChapters = chRes.ok ? await chRes.json() : [];
+    let existingChapters = [];
+    try { existingChapters = await apiFetch('GET', `/projects/${currentProject.id}/chapters`); } catch {}
     const banner = document.getElementById('split-existing-banner');
     if (existingChapters.length) {
       banner.style.display = '';
@@ -24,9 +24,7 @@ async function loadFullXhtml() {
   } catch(e) { /* ignore */ }
 
   try {
-    const res  = await fetch(`${API}/projects/${currentProject.id}/full-xhtml`);
-    const data = await res.json();
-    if (!res.ok) { area.innerHTML = `<p style="color:var(--accent)">${data.error}</p>`; return; }
+    const data = await apiFetch('GET', `/projects/${currentProject.id}/full-xhtml`);
     const parser = new DOMParser();
     const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
     const body   = doc.querySelector('body');
@@ -144,13 +142,11 @@ async function deleteAllChapterFiles() {
   const banner = document.getElementById('split-existing-banner');
   banner.innerHTML = '<span>Deleting…</span>';
   try {
-    const chRes = await fetch(`${API}/projects/${currentProject.id}/chapters`);
-    if (!chRes.ok) { showStatus('split-status', '✗ Could not load chapter list', 'err'); return; }
-    const chapters = await chRes.json();
+    const chapters = await apiFetch('GET', `/projects/${currentProject.id}/chapters`);
     let errors = 0;
     for (const ch of chapters) {
-      const del = await fetch(`${API}/projects/${currentProject.id}/chapters/${ch.filename}`, { method: 'DELETE' });
-      if (!del.ok) errors++;
+      try { await apiFetch('DELETE', `/projects/${currentProject.id}/chapters/${ch.filename}`); }
+      catch { errors++; }
     }
     if (errors) {
       showStatus('split-status', `⚠ ${errors} file${errors !== 1 ? 's' : ''} could not be deleted`, 'err');
@@ -177,25 +173,18 @@ async function applySplits() {
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Splitting…';
   showStatus('split-status', 'Generating chapter files…', 'info');
   try {
-    const res  = await fetch(`${API}/projects/${currentProject.id}/split`, {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ splits })
-    });
-    const data = await res.json();
-    if (!res.ok) { showStatus('split-status', '✗ ' + (data.error || 'Failed'), 'err'); return; }
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/split`, { splits });
     showStatus('split-status', `✓ ${data.saved.length} files created`, 'ok');
     currentProject.status = 'split'; currentProject.chapters = data.saved;
     // Fetch existing build config and update chapters in both profiles
     try {
-      const bcRes = await fetch(`${API}/projects/${currentProject.id}/build-config`);
-      const bc    = bcRes.ok ? await bcRes.json() : null;
+      let bc = null;
+      try { bc = await apiFetch('GET', `/projects/${currentProject.id}/build-config`); } catch {}
       if (bc) {
         const chapterEntries = data.saved.map(ch => ({ filename: ch.filename, enabled: true }));
         bc.digital.chapters = chapterEntries;
         bc.print.chapters   = chapterEntries;
-        await fetch(`${API}/projects/${currentProject.id}/build-config`, {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(bc),
-        });
+        await apiFetch('POST', `/projects/${currentProject.id}/build-config`, bc);
       }
     } catch(e) { console.error('build-config update after split:', e); }
     buildConfig = null; // force Build panel to reload
@@ -215,17 +204,16 @@ async function loadChapterList() {
   list.innerHTML = '';
   try {
     // Load chapters
-    const res        = await fetch(`${API}/projects/${currentProject.id}/chapters`);
-    const chapters   = await res.json();
+    const chapters = await apiFetch('GET', `/projects/${currentProject.id}/chapters`);
 
     // Load structural files (credits, taula, etc.)
-    const res2       = await fetch(`${API}/projects/${currentProject.id}/xhtml`);
-    const allStructural = res2.ok ? await res2.json() : [];
+    let allStructural = [];
+    try { allStructural = await apiFetch('GET', `/projects/${currentProject.id}/xhtml`); } catch {}
 
     // Filter structural files to only those referenced in build config
     // so removing from build panel also removes from editor
-    const res3      = await fetch(`${API}/projects/${currentProject.id}/build-config`);
-    const bConfig   = res3.ok ? await res3.json() : null;
+    let bConfig = null;
+    try { bConfig = await apiFetch('GET', `/projects/${currentProject.id}/build-config`); } catch {}
     let structural  = allStructural;
     if (bConfig) {
       const referenced = new Set();
@@ -302,9 +290,9 @@ async function loadChapterList() {
 
     // Custom CSS files from project styles dir (not in the standard set)
     try {
-      const cssRes    = await fetch(`${API}/projects/${currentProject.id}/styles`);
-      if (cssRes.ok) {
-        const customFiles = (await cssRes.json()).filter(f => !standardCss.has(f));
+      const cssFiles  = await apiFetch('GET', `/projects/${currentProject.id}/styles`);
+      {
+        const customFiles = cssFiles.filter(f => !standardCss.has(f));
         if (customFiles.length) {
           const grpLabel = document.createElement('div');
           grpLabel.style.cssText = 'padding:0.25rem 1rem 0.1rem 1rem;font-family:var(--mono);font-size:0.58rem;color:var(--text3);font-style:italic';
@@ -340,13 +328,12 @@ async function openChapter(filename, listEl) {
   // Chapters use /chapters/, CSS use /styles/, structural files use /xhtml/
   const isChapter = /^\d{4}_/.test(filename);
   const isCss     = filename.endsWith('.css');
-  const url = isChapter ? `${API}/projects/${currentProject.id}/chapters/${filename}`
-            : isCss     ? `${API}/projects/${currentProject.id}/styles/${filename}`
-            :               `${API}/projects/${currentProject.id}/xhtml/${filename}`;
+  const path = isChapter ? `/projects/${currentProject.id}/chapters/${filename}`
+             : isCss     ? `/projects/${currentProject.id}/styles/${filename}`
+             :               `/projects/${currentProject.id}/xhtml/${filename}`;
 
   try {
-    const res  = await fetch(url);
-    const data = await res.json();
+    const data = await apiFetch('GET', path);
 
     if (isCss) {
       // CSS always opens in code mode with CSS syntax highlighting
@@ -567,12 +554,13 @@ async function refreshPreview() {
     console.log('Loading stylesheet:', cssFilename);
     
     try {
-      const cssRes = await fetch(`/publisher/api/projects/${currentProject.id}/styles/${cssFilename}`);
-      if (!cssRes.ok) {
-        console.warn(`CSS fetch failed for ${cssFilename}: ${cssRes.status}`);
+      let cssData;
+      try {
+        cssData = await apiFetch('GET', `/projects/${currentProject.id}/styles/${cssFilename}`);
+      } catch(cssErr) {
+        console.warn(`CSS fetch failed for ${cssFilename}: ${cssErr.message}`);
         continue;
       }
-      const cssData = await cssRes.json();
       const cssContent = cssData.content || '';
       
       const styleEl = document.createElement('style');
@@ -589,13 +577,13 @@ async function refreshPreview() {
   console.log('Attempting to load override:', overrideFilename, 'for mode:', previewMode);
   
   try {
-    const overrideRes = await fetch(`/publisher/api/projects/${currentProject.id}/styles/${overrideFilename}`);
-    if (!overrideRes.ok) {
-      console.log(`Override CSS not found: ${overrideFilename} (${overrideRes.status})`);
+    let overrideData;
+    try {
+      overrideData = await apiFetch('GET', `/projects/${currentProject.id}/styles/${overrideFilename}`);
+    } catch {
+      console.log(`Override CSS not found: ${overrideFilename}`);
       return;
     }
-    
-    const overrideData = await overrideRes.json();
     const overrideContent = overrideData.content || '';
     console.log('Loaded override CSS:', overrideFilename);
     
@@ -752,38 +740,31 @@ async function saveChapter() {
   const xhtml = serializeToXhtml();
   const isChapter = /^\d{4}_/.test(currentChapterFile);
   const isCss     = currentChapterFile.endsWith('.css');
-  const url = isChapter ? `${API}/projects/${currentProject.id}/chapters/${currentChapterFile}`
-            : isCss     ? `${API}/projects/${currentProject.id}/styles/${currentChapterFile}`
-            :               `${API}/projects/${currentProject.id}/xhtml/${currentChapterFile}`;
+  const savePath = isChapter ? `/projects/${currentProject.id}/chapters/${currentChapterFile}`
+                 : isCss     ? `/projects/${currentProject.id}/styles/${currentChapterFile}`
+                 :               `/projects/${currentProject.id}/xhtml/${currentChapterFile}`;
   try {
-    const res = await fetch(url, {
-      method: 'PUT', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ content: xhtml })
-    });
-    if (res.ok) {
-      // After save, extract the stylesheet from what was just saved
-      if (!isCss) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(xhtml, 'application/xhtml+xml');
-        const linkEl = doc.querySelector('link[rel="stylesheet"]');
-        if (linkEl) {
-          currentStylesheet = linkEl.getAttribute('href') || '../styles/main.css';
-        }
-      }
-      isDirty = false;
-      setEditorStatus('Saved ✓', 'ok');
-      if (previewVisible) refreshPreview();
-      
-      // If this is a front/back matter file (not a chapter), refresh its Build preview
-      // so changes immediately appear when user switches to Build panel
-      const isChapter = /^\d{4}_/.test(currentChapterFile);
-      if (!isChapter && !isCss && currentChapterFile) {
-        console.log('saveChapter: refreshing Build preview for', currentChapterFile);
-        const item = { filename: currentChapterFile };
-        await previewBuildItem(item);
+    await apiFetch('PUT', savePath, { content: xhtml });
+    // After save, extract the stylesheet from what was just saved
+    if (!isCss) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xhtml, 'application/xhtml+xml');
+      const linkEl = doc.querySelector('link[rel="stylesheet"]');
+      if (linkEl) {
+        currentStylesheet = linkEl.getAttribute('href') || '../styles/main.css';
       }
     }
-    else setEditorStatus('Save failed', 'err');
+    isDirty = false;
+    setEditorStatus('Saved ✓', 'ok');
+    if (previewVisible) refreshPreview();
+
+    // If this is a front/back matter file (not a chapter), refresh its Build preview
+    // so changes immediately appear when user switches to Build panel
+    if (!isChapter && !isCss && currentChapterFile) {
+      console.log('saveChapter: refreshing Build preview for', currentChapterFile);
+      const item = { filename: currentChapterFile };
+      await previewBuildItem(item);
+    }
   } catch(e) { setEditorStatus('Save failed: ' + e.message, 'err'); }
 }
 
