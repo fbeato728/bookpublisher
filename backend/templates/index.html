@@ -219,7 +219,7 @@ html, body {
 /* Text mode */
 .editor-scroll { height: 100%; overflow-y: auto; padding: 2rem 3rem; display: none; }
 .editor-scroll.active { display: block; }
-#editor-content { font-family: var(--serif); font-size: var(--fs-content); line-height: 1.85; color: var(--text); outline: none; min-height: 200px; caret-color: var(--accent); }
+    #editor-content { font-family: var(--serif); font-size: var(--fs-content); line-height: 1.85; color: var(--text); outline: none; min-height: 200px; caret-color: var(--accent); }
 #editor-content:empty::before { content: attr(data-placeholder); color: var(--text3); }
 
 /* Code mode — Monaco container */
@@ -377,7 +377,7 @@ html, body {
 <div class="app">
 
   <header class="topbar">
-    <div class="logo">Book<span>Publisher 8</span></div>
+    <div class="logo">Book<span>Publisher 14</span></div>
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
@@ -546,10 +546,11 @@ html, body {
         <div class="preview-pane" id="preview-pane">
           <div class="preview-pane-header">
             <span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);flex:1">Preview</span>
-            <button class="fs-btn pv-fs-btn" data-pvsize="0.85rem" style="font-size:0.75rem" title="Small">A</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="0.95rem" style="font-size:0.88rem" title="Medium">A</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="1.05rem" style="font-size:1rem"   title="Large">A</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="1.15rem" style="font-size:1.15rem" title="X-Large">A</button>
+            <button class="btn" id="btn-preview-mode-toggle" style="padding:0.2rem 0.5rem;font-size:0.7rem" onclick="togglePreviewMode()" title="Toggle digital/print preview">Digital | Print</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="1.15rem" style="font-size:0.75rem" title="Small">A</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="1.25rem" style="font-size:0.88rem" title="Medium">A</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="1.35rem" style="font-size:1rem"   title="Large">A</button>
+            <button class="fs-btn pv-fs-btn" data-pvsize="1.45rem" style="font-size:1.15rem" title="X-Large">A</button>
             <button class="btn danger" style="padding:0.15rem 0.5rem;font-size:0.72rem;margin-left:0.5rem" onclick="togglePreviewPane()">✕</button>
           </div>
           <div class="preview-pane-body" id="preview-pane-body"></div>
@@ -1371,7 +1372,8 @@ async function openChapter(filename, listEl) {
       document.getElementById('btn-toggle-mode').style.display = '';
       document.getElementById('btn-preview-file').style.display = '';
       const parser = new DOMParser();
-      const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
+      // const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
+      const doc = parser.parseFromString(data.content, 'text/html');
       
       // Extract stylesheet href from loaded file
       const linkEl = doc.querySelector('link[rel="stylesheet"]');
@@ -1383,6 +1385,18 @@ async function openChapter(filename, listEl) {
       
       const body   = doc.querySelector('body');
       let bodyHtmlLoad = body ? body.innerHTML : '';
+      
+      // ── LOGGING: Check what DOMParser extracted ────────────────────
+      console.log('═══ DOMParser Extraction ═══');
+      console.log('body.innerHTML length:', bodyHtmlLoad.length);
+      console.log('First 500 chars:', bodyHtmlLoad.substring(0, 500));
+      console.log('Last 500 chars:', bodyHtmlLoad.substring(bodyHtmlLoad.length - 500));
+      console.log('Number of _section divs in parsed HTML:', (bodyHtmlLoad.match(/class="_section"/g) || []).length);
+      console.log('Number of <div class="copyright-block"> in parsed HTML:', (bodyHtmlLoad.match(/class="copyright-block"/g) || []).length);
+      console.log('Has <img> in parsed HTML:', bodyHtmlLoad.includes('<img'));
+      console.log('═══ End DOMParser logging ═══\n');
+      // ────────────────────────────────────────────────────────────────
+      
       // Convert <!--fn:N--> or <!--fn:N:variant--> comments to visible fn-marker spans for text mode
       bodyHtmlLoad = bodyHtmlLoad.replace(/<!--fn:(\d+)(?::(\w+))?-->/g, (_, n, v) => {
         const variant = v || 'def';
@@ -1390,6 +1404,67 @@ async function openChapter(filename, listEl) {
         return `<span class="fn-marker" data-fn="${n}" data-variant="${variant}" contenteditable="false">${label}</span>`;
       });
       document.getElementById('editor-content').innerHTML = bodyHtmlLoad;
+      
+      // ── LOGGING: Track display issue with images ────────────────────
+      console.log('═══ openChapter: Content loaded ═══');
+      console.log('Filename:', filename);
+      console.log('Has <img> tag:', data.content.includes('<img'));
+      
+      const contentEl = document.getElementById('editor-content');
+      console.log('Total child elements:', contentEl.children.length);
+      console.log('Total text nodes:', contentEl.childNodes.length);
+      
+      // Find images
+      const images = contentEl.querySelectorAll('img');
+      console.log('Images found:', images.length);
+      
+      if (images.length > 0) {
+        images.forEach((img, idx) => {
+          console.log(`Image ${idx}:`, {
+            src: img.src,
+            computedHeight: window.getComputedStyle(img).height,
+            computedWidth: window.getComputedStyle(img).width,
+            parentTag: img.parentElement?.tagName,
+            parentClass: img.parentElement?.className,
+            parentComputedHeight: window.getComputedStyle(img.parentElement).height
+          });
+        });
+      }
+      
+      // Measure container heights
+      console.log('═══ Container Measurements ═══');
+      console.log('#editor-content:', {
+        clientHeight: contentEl.clientHeight,
+        scrollHeight: contentEl.scrollHeight,
+        offsetHeight: contentEl.offsetHeight,
+        computedHeight: window.getComputedStyle(contentEl).height,
+        computedMaxHeight: window.getComputedStyle(contentEl).maxHeight,
+        computedOverflow: window.getComputedStyle(contentEl).overflow
+      });
+      
+      const scrollEl = document.getElementById('editor-scroll');
+      console.log('#editor-scroll:', {
+        clientHeight: scrollEl.clientHeight,
+        scrollHeight: scrollEl.scrollHeight,
+        computedHeight: window.getComputedStyle(scrollEl).height,
+        computedOverflow: window.getComputedStyle(scrollEl).overflow
+      });
+      
+      const areaEl = document.querySelector('.editor-content-area');
+      console.log('.editor-content-area:', {
+        clientHeight: areaEl.clientHeight,
+        computedHeight: window.getComputedStyle(areaEl).height,
+        computedOverflow: window.getComputedStyle(areaEl).overflow
+      });
+      
+      // Check height ratio
+      if (contentEl.scrollHeight > 0) {
+        const ratio = contentEl.clientHeight / contentEl.scrollHeight;
+        console.log('Height ratio (visible/total):', ratio.toFixed(2), ratio < 0.9 ? '⚠ TRUNCATED!' : '✓ OK');
+      }
+      console.log('═══ End logging ═══\n');
+      // ────────────────────────────────────────────────────────────────
+      
       if (editorMode === 'code' && monacoEditor) {
         // Restore XML language
         const model = monacoEditor.getModel();
@@ -1409,6 +1484,17 @@ async function openChapter(filename, listEl) {
 
 // ── Preview pane ──────────────────────────────────────────────────────────────
 let previewVisible = false;
+let previewMode = 'digital';  // 'digital' or 'print'
+
+function togglePreviewMode() {
+  previewMode = previewMode === 'digital' ? 'print' : 'digital';
+  const btn = document.getElementById('btn-preview-mode-toggle');
+  btn.textContent = previewMode === 'digital' ? 'Digital | Print' : 'Digital | Print';
+  btn.style.fontWeight = previewMode === 'print' ? 'bold' : 'normal';
+  btn.style.textDecoration = previewMode === 'print' ? 'underline' : 'none';
+  console.log('Preview mode:', previewMode);
+  if (previewVisible) refreshPreview();
+}
 let currentStylesheet = '../styles/main.css'; // Store stylesheet href from loaded file
 
 function debounce(fn, ms) {
@@ -1443,7 +1529,7 @@ async function refreshPreview() {
     xhtml = serializeToXhtml();
   }
 
-  // Parse and extract body
+  // Parse XHTML
   const parser = new DOMParser();
   const doc = parser.parseFromString(xhtml, 'text/html');
   const body = doc.querySelector('body');
@@ -1464,32 +1550,86 @@ async function refreshPreview() {
 
   const pane = document.getElementById('preview-pane-body');
   
-  // Remove old style tag
-  const oldStyle = pane.previousElementSibling;
-  if (oldStyle?.tagName === 'STYLE') oldStyle.remove();
+  // Remove old style tags
+  const oldStyles = pane.parentNode.querySelectorAll('style');
+  oldStyles.forEach(s => s.remove());
 
   // Inject body content
   pane.innerHTML = body.innerHTML;
 
-  // Fetch and inject CSS as style tag
-  const linkEl = doc.querySelector('link[rel="stylesheet"]');
-  if (linkEl) {
+  // Extract ALL stylesheet links from XHTML
+  const linkEls = doc.querySelectorAll('link[rel="stylesheet"]');
+  console.log('Found', linkEls.length, 'stylesheet links');
+  
+  // Fetch and inject each stylesheet
+  for (const linkEl of linkEls) {
     const href = linkEl.getAttribute('href');
     const cssFilename = href.split('/').pop();
+    console.log('Loading stylesheet:', cssFilename);
+    
     try {
       const cssRes = await fetch(`/publisher/api/projects/${currentProject.id}/styles/${cssFilename}`);
-      if (!cssRes.ok) throw new Error(`CSS fetch failed: ${cssRes.status}`);
+      if (!cssRes.ok) {
+        console.warn(`CSS fetch failed for ${cssFilename}: ${cssRes.status}`);
+        continue;
+      }
       const cssData = await cssRes.json();
       const cssContent = cssData.content || '';
       
       const styleEl = document.createElement('style');
       styleEl.textContent = cssContent;
       pane.parentNode.insertBefore(styleEl, pane);
+      console.log('Injected stylesheet:', cssFilename);
     } catch(e) {
-      console.error('Failed to load CSS:', e);
-      pane.innerHTML = `<p style="color:red;font-family:monospace">Failed to load stylesheet: ${cssFilename}</p>`;
+      console.error('Failed to load stylesheet:', cssFilename, e);
     }
   }
+
+  // Now try to load and inject override CSS based on preview mode
+  const overrideFilename = previewMode === 'print' ? 'print-overrides.css' : 'digital-overrides.css';
+  console.log('Attempting to load override:', overrideFilename, 'for mode:', previewMode);
+  
+  try {
+    const overrideRes = await fetch(`/publisher/api/projects/${currentProject.id}/styles/${overrideFilename}`);
+    if (!overrideRes.ok) {
+      console.log(`Override CSS not found: ${overrideFilename} (${overrideRes.status})`);
+      return;
+    }
+    
+    const overrideData = await overrideRes.json();
+    const overrideContent = overrideData.content || '';
+    console.log('Loaded override CSS:', overrideFilename);
+    
+    // Extract @media rules based on mode
+    const mediaQuery = previewMode === 'print' ? '@media print' : '@media screen';
+    const extractedRules = extractMediaRules(overrideContent, mediaQuery);
+    
+    if (extractedRules) {
+      const styleEl = document.createElement('style');
+      styleEl.textContent = extractedRules;
+      pane.parentNode.insertBefore(styleEl, pane);
+      console.log('Injected extracted rules from override CSS');
+    } else {
+      console.log('No matching @media rules found in override CSS');
+    }
+  } catch(e) {
+    console.error('Failed to load override CSS:', overrideFilename, e);
+  }
+}
+
+function extractMediaRules(cssContent, mediaQuery) {
+  /**
+   * Extract CSS rules from @media query block.
+   * Example: @media print { ... } or @media screen { ... }
+   * Returns the rules without the @media wrapper.
+   */
+  const regex = new RegExp(`@media\\s+${mediaQuery.replace('@media ', '')}\\s*\\{([^{}]*(?:\\{[^{}]*\\}[^{}]*)*)\\}`, 'i');
+  const match = cssContent.match(regex);
+  
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return null;
 }
 
 // ── Editor: text/code toggle ──────────────────────────────────────────────────

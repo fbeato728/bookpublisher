@@ -532,7 +532,7 @@ def build_epub(project_id, profile):
                                'media_type': mime, 'properties': None})
     
     # ── content.opf ──────────────────────────────────────────────────────────
-    opf = _build_opf(book_id, title, author, language, now, manifest_items, spine_items, is_print)
+    opf = _build_opf(book_id, title, author, language, now, manifest_items, spine_items, is_print, cover_img)
     files_to_write['content.opf'] = opf
     
     # ── Write EPUB zip ────────────────────────────────────────────────────────
@@ -587,7 +587,7 @@ def build_epub(project_id, profile):
 
 # ── OPF / container builders ──────────────────────────────────────────────────
 
-def _build_opf(book_id, title, author, language, modified, manifest_items, spine_items, is_print):
+def _build_opf(book_id, title, author, language, modified, manifest_items, spine_items, is_print, cover_img=None):
     """Build content.opf manifest and spine."""
     manifest_lines = []
     for item in manifest_items:
@@ -598,6 +598,16 @@ def _build_opf(book_id, title, author, language, modified, manifest_items, spine
         )
 
     spine_lines = [f'    <itemref idref="{sid}"/>' for sid in spine_items]
+    
+    # Format timestamp: CCYY-MM-DDThh:mm:ssZ (remove microseconds, add Z for UTC)
+    # Input: 2026-03-06T23:37:51.927718 → Output: 2026-03-06T23:37:51Z
+    if '.' in modified:
+        timestamp = modified.split('.')[0] + 'Z'
+    else:
+        timestamp = modified.rstrip('Z') + 'Z'
+    
+    # Cover metadata (if cover image exists)
+    cover_meta = '    <meta name="cover" content="cover"/>\n' if cover_img else ''
 
     return f"""<?xml version='1.0' encoding='utf-8'?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="3.0">
@@ -610,8 +620,8 @@ def _build_opf(book_id, title, author, language, modified, manifest_items, spine
     <dc:publisher>BonPort</dc:publisher>
     <meta refines="#id-1" property="title-type">main</meta>
     <meta refines="#id-2" property="role" scheme="marc:relators">aut</meta>
-    <meta property="dcterms:modified" scheme="dcterms:W3CDTF">{modified}</meta>
-  </metadata>
+    <meta property="dcterms:modified" scheme="dcterms:W3CDTF">{timestamp}</meta>
+{cover_meta}  </metadata>
   <manifest>
 {chr(10).join(manifest_lines)}
   </manifest>
