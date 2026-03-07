@@ -5,11 +5,13 @@ import re
 import shutil
 from flask import Blueprint, request, jsonify
 from scripts.docx_converter import convert_docx, save_full_xhtml
+from utils import slugify
 
 projects_bp = Blueprint('projects', __name__)
 
-PROJECTS_DIR     = '/srv/bookpublisher/projects'
-GLOBAL_TEMPLATES = '/srv/bookpublisher/global/templates'
+from config import PROJECTS_DIR, GLOBAL_DIR
+
+GLOBAL_TEMPLATES = os.path.join(GLOBAL_DIR, 'templates')
 
 # Front matter files to copy from global/templates into every new project
 FRONT_MATTER_FILES = [
@@ -21,11 +23,6 @@ FRONT_MATTER_FILES = [
     'title_only.xhtml',
 ]
 
-def slugify(text):
-    text = text.lower().strip()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[\s_-]+', '-', text)
-    return text
 
 @projects_bp.route('/api/projects', methods=['GET'])
 def list_projects():
@@ -100,7 +97,7 @@ def create_project():
 
     # Copy all CSS files from global/styles into the project styles dir
     styles_dir = os.path.join(project_dir, 'styles')
-    global_styles_dir = '/srv/bookpublisher/global/styles'
+    global_styles_dir = os.path.join(GLOBAL_DIR, 'styles')
     if os.path.exists(global_styles_dir):
         for css_file in os.listdir(global_styles_dir):
             if css_file.endswith('.css'):

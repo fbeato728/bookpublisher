@@ -4,8 +4,9 @@ from flask import send_from_directory
 
 fonts_bp = Blueprint('fonts', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
-GLOBAL_FONTS = '/srv/bookpublisher/global/fonts'
+from config import PROJECTS_DIR, GLOBAL_DIR
+
+GLOBAL_FONTS = os.path.join(GLOBAL_DIR, 'fonts')
 ALLOWED_EXTS = {'ttf', 'otf', 'woff', 'woff2'}
 
 

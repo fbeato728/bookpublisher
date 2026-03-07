@@ -8,7 +8,8 @@ from lxml import etree
 
 epub_bp = Blueprint('epub', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
+from config import PROJECTS_DIR, GLOBAL_DIR
+from utils import slugify
 
 NAMESPACES = {
     'opf':      'http://www.idpf.org/2007/opf',
@@ -22,12 +23,6 @@ KNOWN_FRONT = {'titlepage', 'credits_1', 'credits', 'title_only', 'titlePageCont
 KNOWN_BACK  = {'biblioThanks', 'bibliography', 'epilogue', 'lesDonesFamilia', 'thanks', 'nav'}
 BLANK_RE    = re.compile(r'^blank', re.IGNORECASE)
 
-
-def slugify(text):
-    text = text.lower().strip()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[\s_-]+', '-', text)
-    return text[:60]
 
 
 @epub_bp.route('/api/projects/import-epub', methods=['POST'])
@@ -48,7 +43,7 @@ def import_epub():
 
     project_id = re.sub(r'[^\w-]', '', project_id).lower()
     if not project_id:
-        project_id = slugify(title) or 'epub-import'
+        project_id = slugify(title)[:60] or 'epub-import'
 
     project_dir = os.path.join(PROJECTS_DIR, project_id)
     if os.path.exists(project_dir):

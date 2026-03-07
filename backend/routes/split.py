@@ -6,13 +6,12 @@ from lxml import etree
 
 split_bp = Blueprint('split', __name__)
 
-PROJECTS_DIR = '/srv/bookpublisher/projects'
-GLOBAL_DIR   = '/srv/bookpublisher/global'
+from config import PROJECTS_DIR, GLOBAL_DIR
 
-GLOBAL_TEMPLATES = '/srv/bookpublisher/global/templates'
+GLOBAL_TEMPLATES = os.path.join(GLOBAL_DIR, 'templates')
 
 # Load config from global config file
-CONFIG_PATH = '/srv/bookpublisher/global/config/split.json'
+CONFIG_PATH = os.path.join(GLOBAL_DIR, 'config', 'split.json')
 
 def load_config():
     """Load split.py config from JSON file."""

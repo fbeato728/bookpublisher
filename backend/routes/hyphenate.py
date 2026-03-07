@@ -17,8 +17,9 @@ from .hyphenator import Hyphenator
 
 hyphenate_bp = Blueprint('hyphenate', __name__)
 
+from config import PROJECTS_DIR
+
 # ── Config ────────────────────────────────────────────────────────────────────
-PROJECTS_DIR   = '/srv/bookpublisher/projects'
 DICT_ZIP       = '/home/apps/.config/calibre/plugins/hyphthisdicts.zip'
 DICT_NAME      = 'cat.dic'
 XHTML_NS       = 'http://www.w3.org/1999/xhtml'

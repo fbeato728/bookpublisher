@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 
 images_bp = Blueprint('images', __name__)
 
-PROJECTS_DIR   = '/srv/bookpublisher/projects'
+from config import PROJECTS_DIR
 ALLOWED_EXTS   = {'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'}
 
 def _images_dir(project_id):
