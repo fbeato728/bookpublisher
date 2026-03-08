@@ -11,29 +11,20 @@ function showPanel(name) {
     (name === 'split' || name === 'editor') ? 'flex' : 'none';
   if (name === 'overview' && currentProject) loadOverview();
   if (name === 'build' && currentProject) { 
-    console.log('showPanel: switching to build, preserving file', buildPreviewFile);
     const preserveFile = buildPreviewFile;  // Save the currently previewed file
     buildConfig = null; 
     loadBuildConfig().then(() => {
-      console.log('showPanel: loadBuildConfig complete, buildConfig loaded');
       // After config reloads, restore the preview
       if (preserveFile && buildConfig) {
-        console.log('showPanel: attempting to restore preview for', preserveFile);
-        console.log('showPanel: buildProfile =', buildProfile);
         const item = [...(buildConfig[buildProfile]?.front_matter || []),
                       ...(buildConfig[buildProfile]?.back_matter || [])].find(i => {
-                        console.log('showPanel: checking item', i.filename, 'vs', preserveFile);
                         return i.filename === preserveFile || i.id === preserveFile;
                       });
-        console.log('showPanel: found item?', !!item, item);
         if (item) {
-          console.log('showPanel: calling previewBuildItem');
           previewBuildItem(item);
         } else {
-          console.log('showPanel: item not found in config');
         }
       } else {
-        console.log('showPanel: no file to preserve or no buildConfig');
       }
     });
     loadImageList(); 
@@ -78,15 +69,10 @@ function openProject(p) {
   }
   currentProject = p;
   document.getElementById('topbar-project').textContent = p.title || p.id;
-  document.getElementById('project-nav').style.display = 'block';
+  document.getElementById('project-nav').classList.remove('hidden');
   document.querySelectorAll('.project-item').forEach(el =>
     el.classList.toggle('active', el.title === p.id)
   );
-  // Route to Editor if chapters already exist, otherwise Split
-  //fetch(`${API}/projects/${p.id}/chapters`)
-  //  .then(r => r.json())
-  //  .then(chapters => showPanel(chapters.length ? 'editor' : 'split'))
-  //  .catch(() => showPanel('split'));
   showPanel('overview');
 }
 
@@ -226,7 +212,7 @@ async function deleteProject() {
   try {
     await apiFetch('DELETE', `/projects/${id}`);
     currentProject = null;
-    document.getElementById('project-nav').style.display = 'none';
+    document.getElementById('project-nav').classList.add('hidden');
     await loadProjects();
     showPanel('welcome');
   } catch(e) { showStatus('overview-status', '✗ ' + e.message, 'err'); }
