@@ -99,7 +99,7 @@ function showLtPopover(span, match) {
   // Show ignore button — store the matched surface text on the button
   const ignBtn = document.getElementById('pop-ignore-btn');
   const surface = match._surface || '';
-  ignBtn.style.display = surface ? '' : 'none';
+  ignBtn.classList.toggle('hidden', !surface);
   ignBtn.textContent = `⊘ Ignore "${surface}" for this project`;
   const pop = document.getElementById('lt-popover'); pop.style.display='block';
   const rect=span.getBoundingClientRect(), pw=280, ph=pop.offsetHeight||100;
@@ -248,12 +248,12 @@ function updateFootnoteUI() {
   const collapsed = document.getElementById('fn-card-collapsed');
   const expanded  = document.getElementById('fn-card-expanded');
   if (collapsed) collapsed.style.display = hasFootnotes ? 'none' : '';
-  if (expanded)  expanded.style.display  = hasFootnotes ? '' : 'none';
+  if (expanded)  expanded.classList.toggle('hidden', !hasFootnotes);
   const status = document.getElementById('footnote-status');
   if (status) status.textContent = hasFootnotes ? `${projectFootnotes.length} footnotes loaded.` : '';
   // Editor toolbar: show fn button only when footnotes are loaded
   const fnBtn = document.getElementById('btn-insert-fn');
-  if (fnBtn) fnBtn.style.display = hasFootnotes ? '' : 'none';
+  if (fnBtn) fnBtn.classList.toggle('hidden', !hasFootnotes);
 }
 
 async function uploadFootnotes(input) {
@@ -307,9 +307,9 @@ function showFootnoteInsertDialog() {
       };
       variantButtons.appendChild(btn);
     });
-    variantSelector.style.display = '';
+    variantSelector.classList.remove('hidden');
   } else {
-    variantSelector.style.display = 'none';
+    variantSelector.classList.add('hidden');
   }
 
   const list = document.getElementById('fn-dialog-list');
@@ -326,13 +326,13 @@ function showFootnoteInsertDialog() {
     list.appendChild(el);
   });
 
-  document.getElementById('fn-dialog').style.display = 'block';
-  document.getElementById('fn-dialog-overlay').style.display = 'block';
+  document.getElementById('fn-dialog').classList.remove('hidden');
+  document.getElementById('fn-dialog-overlay').classList.remove('hidden');
 }
 
 function closeFnDialog() {
-  document.getElementById('fn-dialog').style.display = 'none';
-  document.getElementById('fn-dialog-overlay').style.display = 'none';
+  document.getElementById('fn-dialog').classList.add('hidden');
+  document.getElementById('fn-dialog-overlay').classList.add('hidden');
 }
 
 function insertFootnoteRef(n, variant) {

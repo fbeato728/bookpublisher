@@ -350,15 +350,14 @@ async function openChapter(filename, listEl) {
       // Hide text-mode-only controls
       document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
       document.getElementById('btn-toggle-mode').style.display = 'none';
-      document.getElementById('btn-preview-file').style.display = 'none';
+      document.getElementById('btn-preview-file').classList.add('hidden');
       if (previewVisible) togglePreviewPane();
       setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
     } else {
       // Restore toggle button for XHTML files
       document.getElementById('btn-toggle-mode').style.display = '';
-      document.getElementById('btn-preview-file').style.display = '';
+      document.getElementById('btn-preview-file').classList.remove('hidden');
       const parser = new DOMParser();
-      // const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
       const doc = parser.parseFromString(data.content, 'text/html');
       
       // Extract stylesheet href from loaded file
@@ -371,18 +370,7 @@ async function openChapter(filename, listEl) {
       
       const body   = doc.querySelector('body');
       let bodyHtmlLoad = body ? body.innerHTML : '';
-      
-      // ── LOGGING: Check what DOMParser extracted ────────────────────
-      console.log('═══ DOMParser Extraction ═══');
-      console.log('body.innerHTML length:', bodyHtmlLoad.length);
-      console.log('First 500 chars:', bodyHtmlLoad.substring(0, 500));
-      console.log('Last 500 chars:', bodyHtmlLoad.substring(bodyHtmlLoad.length - 500));
-      console.log('Number of _section divs in parsed HTML:', (bodyHtmlLoad.match(/class="_section"/g) || []).length);
-      console.log('Number of <div class="copyright-block"> in parsed HTML:', (bodyHtmlLoad.match(/class="copyright-block"/g) || []).length);
-      console.log('Has <img> in parsed HTML:', bodyHtmlLoad.includes('<img'));
-      console.log('═══ End DOMParser logging ═══\n');
-      // ────────────────────────────────────────────────────────────────
-      
+
       // Convert <!--fn:N--> or <!--fn:N:variant--> comments to visible fn-marker spans for text mode
       bodyHtmlLoad = bodyHtmlLoad.replace(/<!--fn:(\d+)(?::(\w+))?-->/g, (_, n, v) => {
         const variant = v || 'def';
@@ -390,67 +378,7 @@ async function openChapter(filename, listEl) {
         return `<span class="fn-marker" data-fn="${n}" data-variant="${variant}" contenteditable="false">${label}</span>`;
       });
       document.getElementById('editor-content').innerHTML = bodyHtmlLoad;
-      
-      // ── LOGGING: Track display issue with images ────────────────────
-      console.log('═══ openChapter: Content loaded ═══');
-      console.log('Filename:', filename);
-      console.log('Has <img> tag:', data.content.includes('<img'));
-      
-      const contentEl = document.getElementById('editor-content');
-      console.log('Total child elements:', contentEl.children.length);
-      console.log('Total text nodes:', contentEl.childNodes.length);
-      
-      // Find images
-      const images = contentEl.querySelectorAll('img');
-      console.log('Images found:', images.length);
-      
-      if (images.length > 0) {
-        images.forEach((img, idx) => {
-          console.log(`Image ${idx}:`, {
-            src: img.src,
-            computedHeight: window.getComputedStyle(img).height,
-            computedWidth: window.getComputedStyle(img).width,
-            parentTag: img.parentElement?.tagName,
-            parentClass: img.parentElement?.className,
-            parentComputedHeight: window.getComputedStyle(img.parentElement).height
-          });
-        });
-      }
-      
-      // Measure container heights
-      console.log('═══ Container Measurements ═══');
-      console.log('#editor-content:', {
-        clientHeight: contentEl.clientHeight,
-        scrollHeight: contentEl.scrollHeight,
-        offsetHeight: contentEl.offsetHeight,
-        computedHeight: window.getComputedStyle(contentEl).height,
-        computedMaxHeight: window.getComputedStyle(contentEl).maxHeight,
-        computedOverflow: window.getComputedStyle(contentEl).overflow
-      });
-      
-      const scrollEl = document.getElementById('editor-scroll');
-      console.log('#editor-scroll:', {
-        clientHeight: scrollEl.clientHeight,
-        scrollHeight: scrollEl.scrollHeight,
-        computedHeight: window.getComputedStyle(scrollEl).height,
-        computedOverflow: window.getComputedStyle(scrollEl).overflow
-      });
-      
-      const areaEl = document.querySelector('.editor-content-area');
-      console.log('.editor-content-area:', {
-        clientHeight: areaEl.clientHeight,
-        computedHeight: window.getComputedStyle(areaEl).height,
-        computedOverflow: window.getComputedStyle(areaEl).overflow
-      });
-      
-      // Check height ratio
-      if (contentEl.scrollHeight > 0) {
-        const ratio = contentEl.clientHeight / contentEl.scrollHeight;
-        console.log('Height ratio (visible/total):', ratio.toFixed(2), ratio < 0.9 ? '⚠ TRUNCATED!' : '✓ OK');
-      }
-      console.log('═══ End logging ═══\n');
-      // ────────────────────────────────────────────────────────────────
-      
+
       if (editorMode === 'code' && monacoEditor) {
         // Restore XML language
         const model = monacoEditor.getModel();
@@ -477,7 +405,6 @@ function togglePreviewMode() {
   btn.textContent = previewMode === 'digital' ? 'Digital | Print' : 'Digital | Print';
   btn.style.fontWeight = previewMode === 'print' ? 'bold' : 'normal';
   btn.style.textDecoration = previewMode === 'print' ? 'underline' : 'none';
-  console.log('Preview mode:', previewMode);
   if (previewVisible) refreshPreview();
 }
 // currentStylesheet lives in globals.js (written from projects.js)
@@ -544,13 +471,11 @@ async function refreshPreview() {
 
   // Extract ALL stylesheet links from XHTML
   const linkEls = doc.querySelectorAll('link[rel="stylesheet"]');
-  console.log('Found', linkEls.length, 'stylesheet links');
   
   // Fetch and inject each stylesheet
   for (const linkEl of linkEls) {
     const href = linkEl.getAttribute('href');
     const cssFilename = href.split('/').pop();
-    console.log('Loading stylesheet:', cssFilename);
     
     try {
       let cssData;
@@ -565,7 +490,6 @@ async function refreshPreview() {
       const styleEl = document.createElement('style');
       styleEl.textContent = cssContent;
       pane.parentNode.insertBefore(styleEl, pane);
-      console.log('Injected stylesheet:', cssFilename);
     } catch(e) {
       console.error('Failed to load stylesheet:', cssFilename, e);
     }
@@ -573,18 +497,15 @@ async function refreshPreview() {
 
   // Now try to load and inject override CSS based on preview mode
   const overrideFilename = previewMode === 'print' ? 'print-overrides.css' : 'digital-overrides.css';
-  console.log('Attempting to load override:', overrideFilename, 'for mode:', previewMode);
   
   try {
     let overrideData;
     try {
       overrideData = await apiFetch('GET', `/projects/${currentProject.id}/styles/${overrideFilename}`);
     } catch {
-      console.log(`Override CSS not found: ${overrideFilename}`);
       return;
     }
     const overrideContent = overrideData.content || '';
-    console.log('Loaded override CSS:', overrideFilename);
     
     // Extract @media rules based on mode
     const mediaQuery = previewMode === 'print' ? '@media print' : '@media screen';
@@ -594,9 +515,7 @@ async function refreshPreview() {
       const styleEl = document.createElement('style');
       styleEl.textContent = extractedRules;
       pane.parentNode.insertBefore(styleEl, pane);
-      console.log('Injected extracted rules from override CSS');
     } else {
-      console.log('No matching @media rules found in override CSS');
     }
   } catch(e) {
     console.error('Failed to load override CSS:', overrideFilename, e);
@@ -760,7 +679,6 @@ async function saveChapter() {
     // If this is a front/back matter file (not a chapter), refresh its Build preview
     // so changes immediately appear when user switches to Build panel
     if (!isChapter && !isCss && currentChapterFile) {
-      console.log('saveChapter: refreshing Build preview for', currentChapterFile);
       const item = { filename: currentChapterFile };
       await previewBuildItem(item);
     }

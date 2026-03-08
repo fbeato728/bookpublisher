@@ -32,7 +32,7 @@
       <div class="nav-item active" data-panel="welcome"><span class="icon">⌂</span> Home</div>
       <div class="nav-item" data-panel="upload"><span class="icon">↑</span> Upload</div>
     </div>
-    <div class="sidebar-section" id="project-nav" style="display:none">
+    <div class="sidebar-section hidden" id="project-nav">
       <div class="sidebar-label">Current Project</div>
       <div class="nav-item" data-panel="overview"><span class="icon">◉</span> Overview</div>
       <div class="nav-item" data-panel="split"><span class="icon">✂</span> Split</div>
@@ -80,7 +80,7 @@
             <strong>Click to select a DOCX or ODT file</strong><br>or drag and drop here
           </div>
         </div>
-        <input type="file" id="file-input" accept=".docx,.odt" style="display:none">
+        <input type="file" id="file-input" accept=".docx,.odt" class="hidden">
         <div class="form-group">
           <label class="form-label">Project ID <small style="color:var(--text3)">(letters, numbers, hyphens only)</small></label>
           <input class="form-input" type="text" id="input-project-id" placeholder="e.g. vagabunda">
@@ -143,7 +143,7 @@
             <button class="fmt-btn" id="btn-bold"   title="Bold (Ctrl+B)"><b>B</b></button>
             <button class="fmt-btn" id="btn-italic" title="Italic (Ctrl+I)"><i>I</i></button>
             <span class="fmt-sep"></span>
-            <button class="fmt-btn" id="btn-insert-fn" title="Insert footnote reference" style="display:none">fn</button>
+            <button class="fmt-btn hidden" id="btn-insert-fn" title="Insert footnote reference">fn</button>
             <span class="fmt-sep"></span>
             <select id="lt-lang" class="lt-only">
               <option value="ca-ES">Català</option>
@@ -154,7 +154,7 @@
               <option value="de-DE">Deutsch</option>
             </select>
             <button class="btn lt-only" id="btn-lt-check">Check grammar</button>
-            <span id="monaco-fs-control" style="display:none;align-items:center;gap:0.25rem;">
+            <span id="monaco-fs-control" class="hidden" style="align-items:center;gap:0.25rem;">
               <button class="btn" id="btn-monaco-fs-down" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Decrease code font">−</button>
               <span id="monaco-fs-label" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);min-width:2.2rem;text-align:center">13px</span>
               <button class="btn" id="btn-monaco-fs-up" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Increase code font">+</button>
@@ -162,7 +162,7 @@
             <button class="btn" id="btn-toggle-mode" title="Toggle text / code view">⟨/⟩ Code</button>
             <button class="btn lt-only" id="btn-ignore-panel" title="Exception words">☰ Exceptions</button>
             <button class="btn primary" id="btn-save-chapter">Save</button>
-            <button class="btn" id="btn-preview-file" style="display:none" title="Toggle preview pane">👁 Preview</button>
+            <button class="btn hidden" id="btn-preview-file" title="Toggle preview pane">👁 Preview</button>
           </div>
           <div class="editor-content-area">
             <div class="editor-scroll active" id="editor-scroll">
@@ -212,9 +212,9 @@
           </div>
           <div class="build-section">
             <div class="build-section-head">Chapters
-              <span id="chapters-dirty-badge" class="chapters-dirty-badge" style="display:none">● unsaved</span>
+              <span id="chapters-dirty-badge" class="chapters-dirty-badge hidden">● unsaved</span>
               <button class="btn" id="btn-add-chapter" style="padding:0.25rem 0.6rem;font-size:0.72rem">+ New</button>
-              <button class="btn primary" id="btn-save-chapters" style="padding:0.25rem 0.6rem;font-size:0.72rem;display:none">Save</button>
+              <button class="btn primary hidden" id="btn-save-chapters" style="padding:0.25rem 0.6rem;font-size:0.72rem">Save</button>
             </div>
             <div id="build-chapter-list" class="build-item-list"></div>
           </div>
@@ -234,7 +234,7 @@
             <p style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">Select a front or back matter item to preview its content.</p>
           </div>
           <div style="border-top:1px solid var(--border);padding-top:0.5rem;display:flex;gap:0.5rem">
-            <button class="btn" id="btn-build-preview-edit" style="display:none">✎ Open in Editor</button>
+            <button class="btn hidden" id="btn-build-preview-edit">✎ Open in Editor</button>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:1rem;position:sticky;top:0">
@@ -243,17 +243,17 @@
             <div id="image-list" style="margin:0.4rem 0;display:flex;flex-direction:column;gap:0.3rem;max-height:200px;overflow-y:auto"></div>
             <label class="btn" style="cursor:pointer;margin-top:0.3rem;text-align:center">
               ⊕ Upload image
-              <input type="file" id="image-upload-input" accept="image/*" style="display:none">
+              <input type="file" id="image-upload-input" accept="image/*" class="hidden">
             </label>
           </div>
           <!-- footnotes: collapsed = just upload link, expanded = full card -->
           <div id="fn-card-collapsed" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">
             <label style="cursor:pointer;color:var(--text3)">
               ⊕ Upload footnotes
-              <input type="file" id="footnote-upload-input" accept=".txt" style="display:none">
+              <input type="file" id="footnote-upload-input" accept=".txt" class="hidden">
             </label>
           </div>
-          <div id="fn-card-expanded" class="build-card" style="display:none">
+          <div id="fn-card-expanded" class="build-card hidden">
             <div class="build-card-title">Footnotes</div>
             <div id="footnote-status" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.75rem"></div>
             <div style="margin-bottom:0.75rem">
@@ -324,12 +324,12 @@
   </main>
 </div>
 
-<div id="fn-dialog" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+<div id="fn-dialog" class="hidden" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
   background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:1rem;
   z-index:1000;min-width:300px;box-shadow:0 4px 20px rgba(0,0,0,0.3)">
   <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;
     color:var(--text3);margin-bottom:0.6rem">Insert Footnote Reference</div>
-  <div id="fn-variant-selector" style="display:none;margin-bottom:0.6rem">
+  <div id="fn-variant-selector" class="hidden" style="margin-bottom:0.6rem">
     <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:0.3rem">Variant</div>
     <div id="fn-variant-buttons" style="display:flex;gap:0.35rem;flex-wrap:wrap"></div>
   </div>
@@ -337,14 +337,14 @@
     display:flex;flex-direction:column;gap:0.25rem"></div>
   <button class="btn" id="btn-close-fn-dialog" style="width:100%">Cancel</button>
 </div>
-<div id="fn-dialog-overlay" style="display:none;position:fixed;inset:0;z-index:999"></div>
+<div id="fn-dialog-overlay" class="hidden" style="position:fixed;inset:0;z-index:999"></div>
 
 
 <div id="lt-popover">
   <div class="pop-rule" id="pop-rule"></div>
   <div class="pop-msg"  id="pop-msg"></div>
   <div class="pop-suggs" id="pop-suggs"></div>
-  <button class="pop-ignore-btn" id="pop-ignore-btn" style="display:none">⊘ Ignore this word for project</button>
+  <button class="pop-ignore-btn hidden" id="pop-ignore-btn">⊘ Ignore this word for project</button>
 </div>
 
 <script>

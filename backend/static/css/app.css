@@ -361,3 +361,5 @@ html, body {
   text-align: left;
 }
 .pop-ignore-btn:hover { color: var(--accent); border-color: var(--accent); background: #fdf0ee; }
+
+.hidden { display: none; }

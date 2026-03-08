@@ -146,14 +146,14 @@ function renderBuildList(containerId, items, section) {
 
 function markChaptersDirty() {
   chaptersDirty = true;
-  document.getElementById('chapters-dirty-badge').style.display = '';
-  document.getElementById('btn-save-chapters').style.display = '';
+  document.getElementById('chapters-dirty-badge').classList.remove('hidden');
+  document.getElementById('btn-save-chapters').classList.remove('hidden');
 }
 
 function clearChaptersDirty() {
   chaptersDirty = false;
-  document.getElementById('chapters-dirty-badge').style.display = 'none';
-  document.getElementById('btn-save-chapters').style.display = 'none';
+  document.getElementById('chapters-dirty-badge').classList.add('hidden');
+  document.getElementById('btn-save-chapters').classList.add('hidden');
 }
 
 function renderChapterList(containerId, chapters) {
@@ -393,19 +393,14 @@ async function addBuildItem(section) {
     cleanFilename = cleanFilename + '.xhtml';
   }
   
-  console.log('addBuildItem: creating file', cleanFilename, 'in section', section);
   
   const key      = section === 'front' ? 'front_matter' : 'back_matter';
   try {
-    console.log('addBuildItem: checking if file exists at', `/projects/${currentProject.id}/xhtml/${cleanFilename}`);
     try {
       await apiFetch('GET', `/projects/${currentProject.id}/xhtml/${cleanFilename}`);
-      console.log('addBuildItem: file already exists');
     } catch {
-      console.log('addBuildItem: file does not exist, attempting to create...');
       try {
         const createData = await apiFetch('POST', `/projects/${currentProject.id}/xhtml/${cleanFilename}`);
-        console.log('addBuildItem: file created successfully, response:', createData);
       } catch(createErr) {
         console.error('addBuildItem: POST response error', createErr);
         if (!createErr.message.includes('File already exists')) {
@@ -419,12 +414,10 @@ async function addBuildItem(section) {
     showStatus('build-status', '✗ ' + e.message, 'err'); return;
   }
   
-  console.log('addBuildItem: adding to buildConfig');
   buildConfig[buildProfile][key].push({ filename: cleanFilename, type: 'custom' });
   await saveBuildConfig();
   renderBuildPanel();
   const item = buildConfig[buildProfile][key].slice(-1)[0];
-  console.log('addBuildItem: calling previewBuildItem with item', item);
   await previewBuildItem(item);
 }
 
@@ -437,17 +430,12 @@ async function previewBuildItem(item) {
     return;
   }
   
-  console.log('previewBuildItem: setting buildPreviewFile to', filename);
   buildPreviewFile = filename;
   document.getElementById('build-preview-filename').textContent = filename;
-  document.getElementById('btn-build-preview-edit').style.display = '';
+  document.getElementById('btn-build-preview-edit').classList.remove('hidden');
   const body = document.getElementById('build-preview-body');
   const bodyParent = body?.parentElement;
   const bodyGrandparent = bodyParent?.parentElement;
-  console.log('previewBuildItem: body element found?', !!body, 'display:', body?.style.display);
-  console.log('previewBuildItem: body parent display:', bodyParent?.style.display, 'class:', bodyParent?.className);
-  console.log('previewBuildItem: body grandparent display:', bodyGrandparent?.style.display, 'class:', bodyGrandparent?.className);
-  console.log('previewBuildItem: computed body display:', window.getComputedStyle(body)?.display);
   body.innerHTML = '<span style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">Loading…</span>';
 
   try {
@@ -457,7 +445,7 @@ async function previewBuildItem(item) {
     } catch {
       console.warn('previewBuildItem: file not found or error');
       body.innerHTML = `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--accent)">⚠ File not found: ${escHtml(filename)}</p>`;
-      document.getElementById('btn-build-preview-edit').style.display = '';
+      document.getElementById('btn-build-preview-edit').classList.remove('hidden');
       return;
     }
     const parser = new DOMParser();
@@ -476,11 +464,9 @@ async function previewBuildItem(item) {
         }
       }
       const html = preview.length ? preview.join('<br/>') : '<p style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">(empty file)</p>';
-      console.log('previewBuildItem: setting innerHTML, length =', html.length);
       body.innerHTML = html;
       body.style.backgroundColor = '#F8F8FF';  // Yellow background for debugging
       body.style.color = '#000000';  // Black text for debugging
-      console.log('previewBuildItem: innerHTML set, body.innerHTML.length =', body.innerHTML.length);
     } else {
       body.innerHTML = data.content;
     }
@@ -489,7 +475,6 @@ async function previewBuildItem(item) {
     const srcColor = data.source === 'global' ? 'var(--amber)' : 'var(--green)';
     document.getElementById('build-preview-filename').innerHTML =
       `${escHtml(filename)} <span style="color:${srcColor};font-size:0.6rem">${src}</span>`;
-    console.log('previewBuildItem: preview loaded successfully');
   } catch(e) {
     console.error('previewBuildItem: error', e);
     body.innerHTML = `<p style="font-family:var(--mono);font-size:0.72rem;color:var(--accent)">Error: ${escHtml(e.message)}</p>`;
@@ -548,7 +533,6 @@ async function assignBuildFile(oldFilename, newFilename) {
 }
 
 async function openBuildItemInEditor() {
-  console.log('openBuildItemInEditor called! buildPreviewFile =', buildPreviewFile);
   
   if (!buildPreviewFile) {
     console.error('openBuildItemInEditor: buildPreviewFile is not set');
@@ -556,7 +540,6 @@ async function openBuildItemInEditor() {
     return;
   }
   
-  console.log('openBuildItemInEditor: opening', buildPreviewFile);
   
   // Show editor panel
   showPanel('editor');
@@ -576,7 +559,6 @@ async function openBuildItemInEditor() {
   const openPath = isCss ? `/projects/${currentProject.id}/styles/${buildPreviewFile}`
                          : `/projects/${currentProject.id}/xhtml/${buildPreviewFile}`;
 
-  console.log('openBuildItemInEditor: fetching from', openPath);
 
   try {
     const data = await apiFetch('GET', `${openPath}?t=${Date.now()}`);
@@ -594,16 +576,14 @@ async function openBuildItemInEditor() {
       }
       document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
       document.getElementById('btn-toggle-mode').style.display = 'none';
-      document.getElementById('btn-preview-file').style.display = 'none';
+      document.getElementById('btn-preview-file').classList.add('hidden');
       if (previewVisible) togglePreviewPane();
       setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
     } else {
       // XHTML file - switch to text mode first to show the editor-content div
-      console.log('openBuildItemInEditor: XHTML file detected, current editorMode =', editorMode);
       
       // Force text mode
       if (editorMode !== 'text') {
-        console.log('openBuildItemInEditor: switching to text mode');
         switchToTextMode();
       }
       
@@ -611,10 +591,9 @@ async function openBuildItemInEditor() {
       document.getElementById('editor-scroll').classList.add('active');
       document.getElementById('monaco-container').classList.remove('active');
       editorMode = 'text';
-      console.log('openBuildItemInEditor: forced text mode visibility');
       
       document.getElementById('btn-toggle-mode').style.display = '';
-      document.getElementById('btn-preview-file').style.display = '';
+      document.getElementById('btn-preview-file').classList.remove('hidden');
       const parser = new DOMParser();
       const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
       
@@ -638,11 +617,9 @@ async function openBuildItemInEditor() {
         return `<span class="fn-marker" data-fn="${n}" data-variant="${variant}" contenteditable="false">${label}</span>`;
       });
       
-      console.log('openBuildItemInEditor: setting editor-content, length =', bodyHtml.length);
       const editorContentEl = document.getElementById('editor-content');
       editorContentEl.innerHTML = bodyHtml;
       editorContentEl.dataset.rawXhtml = data.content;
-      console.log('openBuildItemInEditor: content set successfully');
       
       // Check for grammar (only if project file)
       if (data.source === 'project') {
@@ -658,7 +635,6 @@ async function openBuildItemInEditor() {
         setEditorStatus('⚠ Loaded from global — save to create project override', 'warn');
       }
     }
-    console.log('openBuildItemInEditor: file loaded successfully');
   } catch(e) {
     console.error('openBuildItemInEditor: error', e);
     setEditorStatus(`✗ ${e.message}`, 'err');
