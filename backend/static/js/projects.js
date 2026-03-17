@@ -1,14 +1,18 @@
 'use strict';
 
 // ── Navigation ───────────────────────────────────────────────────────────────
-function showPanel(name) {
+async function showPanel(name) {
+  if (name !== 'editor' && isDirty && currentChapterFile) {
+    const result = await confirmIfDirty();
+    if (result === 'cancel') return;
+  }
   if (name !== 'editor' && previewVisible) togglePreviewPane();
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
   document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
-  document.getElementById('fs-control').style.display =
-    (name === 'split' || name === 'editor') ? 'flex' : 'none';
+  // document.getElementById('fs-control').style.display =
+  //   (name === 'split' || name === 'editor') ? 'flex' : 'none';
   if (name === 'overview' && currentProject) loadOverview();
   if (name === 'build' && currentProject) { 
     const preserveFile = buildPreviewFile;  // Save the currently previewed file
@@ -30,8 +34,9 @@ function showPanel(name) {
     loadImageList(); 
     loadFootnotes(); 
   }
-  if (name === 'split'  && currentProject) loadFullXhtml();
+  if (name === 'split' && currentProject) { showSplitsView(); loadFullXhtml(); }
   if (name === 'editor' && currentProject) { loadChapterList(); loadIgnoreWords(); loadFootnotes(); }
+  if (name === 'pdf'    && currentProject) loadPdfPanel();
   if (monacoEditor) monacoEditor.layout();
 }
 
@@ -46,19 +51,24 @@ async function loadProjects() {
       el.className  = 'project-item' + (currentProject?.id === p.id ? ' active' : '');
       el.textContent = p.id;  // ← change to this
       el.title = p.title || p.id;  // ← change to this
+      el.dataset.projectId = p.id;
       el.onclick = () => openProject(p);
       list.appendChild(el);
     });
   } catch(e) { console.error('loadProjects:', e); }
 }
 
-function openProject(p) {
+async function openProject(p) {
+  if (isDirty && currentChapterFile && currentProject?.id !== p.id) {
+    const result = await confirmIfDirty();
+    if (result === 'cancel') return;
+  }
   if (currentProject?.id !== p.id) {
     splitSavedData = [];
     splitProjectId = null;
     splitMarkers   = [];
     currentChapterFile = null;
-    currentStylesheet = '../styles/main.css'; // Reset to default stylesheet
+    currentStylesheet = '../styles/main.css';
     isDirty = false;
     chaptersDirty   = false;
     chaptersEditing = [];
@@ -66,12 +76,13 @@ function openProject(p) {
     document.getElementById('editor-content').innerHTML = '';
     document.getElementById('editor-content').dataset.rawXhtml = '';
     setEditorStatus('', '');
+    showSplitsView();
   }
   currentProject = p;
-  document.getElementById('topbar-project').textContent = p.title || p.id;
+  document.getElementById('topbar-project').textContent = p.id;
   document.getElementById('project-nav').classList.remove('hidden');
   document.querySelectorAll('.project-item').forEach(el =>
-    el.classList.toggle('active', el.title === p.id)
+    el.classList.toggle('active', el.dataset.projectId === p.id)
   );
   showPanel('overview');
 }
@@ -91,21 +102,18 @@ function setUploadMode(mode) {
 }
 
 // ── Upload ───────────────────────────────────────────────────────────────────
-const uploadArea = document.getElementById('upload-area');
-const fileInput  = document.getElementById('file-input');
-
-uploadArea.addEventListener('click', () => fileInput.click());
-uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag'); });
-uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag'));
-uploadArea.addEventListener('drop', e => {
-  e.preventDefault(); uploadArea.classList.remove('drag');
+function onUploadAreaClick() { document.getElementById('file-input').click(); }
+function onUploadDragover(e) { e.preventDefault(); document.getElementById('upload-area').classList.add('drag'); }
+function onUploadDragleave() { document.getElementById('upload-area').classList.remove('drag'); }
+function onUploadDrop(e) {
+  e.preventDefault(); document.getElementById('upload-area').classList.remove('drag');
   if (e.dataTransfer.files[0]) {
     const f = e.dataTransfer.files[0];
     if (f.name.endsWith('.epub') && uploadMode !== 'epub') setUploadMode('epub');
     handleFile(f);
   }
-});
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+}
+function onFileInputChange() { const fi = document.getElementById('file-input'); if (fi.files[0]) handleFile(fi.files[0]); }
 
 function handleFile(file) {
   document.getElementById('upload-text').innerHTML =
@@ -116,10 +124,8 @@ function handleFile(file) {
   if (!tit.value) tit.value = file.name.replace(/\.[^.]+$/,'');
 }
 
-document.getElementById('btn-upload').addEventListener('click', uploadManuscript);
-
 async function uploadManuscript() {
-  const file      = fileInput.files[0];
+  const file      = document.getElementById('file-input').files[0];
   const projectId = document.getElementById('input-project-id').value.trim();
   const title     = document.getElementById('input-title').value.trim();
   const author    = document.getElementById('input-author').value.trim();
@@ -145,27 +151,11 @@ async function uploadManuscript() {
       ? `✓ EPUB imported as "${data.id}" — ${(data.chapters||[]).length} chapters`
       : `✓ Project "${data.id}" created — "${data.title}"`;
 
-    // Save default build config with front matter pre-populated, chapters from import if any
-    // Key order: front_matter → chapters → back_matter (matches spine reading order)
-    const chapterEntries = (data.chapters || []).map(ch => ({ filename: typeof ch === 'string' ? ch : ch.filename, enabled: true }));
-    const defaultConfig = {
-      digital: {
-        front_matter: JSON.parse(JSON.stringify(BUILD_DEFAULTS.digital.front_matter)),
-        chapters: chapterEntries,
-        back_matter:  JSON.parse(JSON.stringify(BUILD_DEFAULTS.digital.back_matter)),
-      },
-      print: {
-        front_matter: JSON.parse(JSON.stringify(BUILD_DEFAULTS.print.front_matter)),
-        chapters: chapterEntries,
-        back_matter:  JSON.parse(JSON.stringify(BUILD_DEFAULTS.print.back_matter)),
-      },
-    };
-    await apiFetch('POST', `/projects/${data.id}/build-config`, defaultConfig);
 
     await loadProjects();
     openProject(data);
     // Reset upload form
-    fileInput.value = '';
+    document.getElementById('file-input').value = '';
     document.getElementById('input-project-id').value = '';
     document.getElementById('input-title').value = '';
     document.getElementById('input-author').value = '';
@@ -182,25 +172,139 @@ async function uploadManuscript() {
 // ── Overview panel ───────────────────────────────────────────────────────────
 async function loadOverview() {
   if (!currentProject) return;
-  const info = document.getElementById('overview-info');
+  const info   = document.getElementById('overview-info');
   const status = document.getElementById('overview-status');
+  const btn    = document.getElementById('btn-detect-footnotes');
   info.innerHTML = 'Loading…';
   try {
-    let chapters = [], hasBuild = false;
+    let chapters = [], hasBuild = false, hasFootnotes = false, footnotesTotal = 0, footnotesInjected = false;
     try { chapters = await apiFetch('GET', `/projects/${currentProject.id}/chapters`); } catch {}
     try { await apiFetch('GET', `/projects/${currentProject.id}/build-config`); hasBuild = true; } catch {}
+    try {
+      const fnMap = await apiFetch('GET', `/projects/${currentProject.id}/footnotes/map`);
+      hasFootnotes      = true;
+      footnotesTotal    = fnMap.total || 0;
+      footnotesInjected = fnMap.footnotes_injected || false;
+    } catch {}
 
     info.innerHTML = `
       <div><span style="color:var(--text3)">Project ID</span>&emsp;${currentProject.id}</div>
       <div><span style="color:var(--text3)">Title</span>&emsp;${currentProject.title || '—'}</div>
       <div><span style="color:var(--text3)">Author</span>&emsp;${currentProject.author || '—'}</div>
       <div><span style="color:var(--text3)">full.xhtml</span>&emsp;✓</div>
+      <div><span style="color:var(--text3)">Footnotes</span>&emsp;${hasFootnotes ? '✓' : '✗'}</div>
       <div><span style="color:var(--text3)">Chapters</span>&emsp;${chapters.length ? chapters.length + ' files' : '— none'}</div>
       <div><span style="color:var(--text3)">Build config</span>&emsp;${hasBuild ? '✓' : '—'}</div>
     `;
+
+    btn.disabled    = footnotesInjected;
+    btn.textContent = hasFootnotes ? '⎆ Re-detect Footnotes' : '⎆ Detect Footnotes';
+    btn.dataset.hasFootnotes = hasFootnotes ? '1' : '';
+
+    const injectBtn  = document.getElementById('btn-inject-footnotes');
+    injectBtn.textContent = '⚡ Inject Footnotes';
+    const results    = document.getElementById('overview-footnotes');
+    const msg        = document.getElementById('overview-footnotes-msg');
+    const resetBtn   = document.getElementById('btn-reset-footnotes');
+
+    if (hasFootnotes) {
+      const statusText = footnotesInjected ? ' — injected ✓' : '';
+      msg.textContent       = `${footnotesTotal} footnote${footnotesTotal !== 1 ? 's' : ''} detected.${statusText}`;
+      results.style.display = 'block';
+      resetBtn.style.display  = 'inline-block';
+      injectBtn.style.display = footnotesInjected ? 'none' : 'inline-block';
+      injectBtn.disabled      = false;
+    } else {
+      results.style.display   = 'none';
+      resetBtn.style.display  = 'none';
+      injectBtn.style.display = 'none';
+    }
+
     status.innerHTML = '';
   } catch(e) {
     info.innerHTML = `<span style="color:var(--accent)">${e.message}</span>`;
+  }
+}
+
+async function detectFootnotes() {
+  if (!currentProject) return;
+  const btn      = document.getElementById('btn-detect-footnotes');
+  const results  = document.getElementById('overview-footnotes');
+  const msg      = document.getElementById('overview-footnotes-msg');
+  const resetBtn = document.getElementById('btn-reset-footnotes');
+  const injectBtn = document.getElementById('btn-inject-footnotes');
+
+  if (btn.dataset.hasFootnotes) {
+    if (!confirm('Footnotes have already been detected for this project.\n\nRe-detecting will overwrite the existing data. Continue?')) return;
+  }
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Detecting…';
+  results.style.display  = 'none';
+  msg.textContent        = '';
+  resetBtn.style.display = 'none';
+
+  try {
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/footnotes/detect`);
+    const total = data.total || 0;
+    if (total === 0) {
+      msg.textContent         = 'No footnotes detected.';
+      resetBtn.style.display  = 'none';
+      injectBtn.style.display = 'none';
+    } else {
+      msg.textContent         = `${total} footnote${total !== 1 ? 's' : ''} detected.`;
+      resetBtn.style.display  = 'inline-block';
+      injectBtn.style.display = 'inline-block';
+      injectBtn.disabled      = false;
+    }
+    results.style.display = 'block';
+    await loadOverview();
+  } catch(e) {
+    const msg    = document.getElementById('overview-footnotes-msg');
+    const results = document.getElementById('overview-footnotes');
+    msg.textContent       = '✗ ' + e.message;
+    results.style.display = 'block';
+    btn.disabled          = false;
+    btn.textContent       = btn.dataset.hasFootnotes ? '⎆ Re-detect Footnotes' : '⎆ Detect Footnotes';
+  }
+}
+
+async function resetFootnotes() {
+  if (!currentProject) return;
+  if (!confirm('Reset footnotes for this project?\n\nThis will delete the detected footnotes map and restore the original full.xhtml. This cannot be undone.')) return;
+  try {
+    await apiFetch('DELETE', `/projects/${currentProject.id}/footnotes/map`);
+    document.getElementById('overview-footnotes').style.display  = 'none';
+    document.getElementById('overview-footnotes-msg').textContent = '';
+    document.getElementById('btn-reset-footnotes').style.display = 'none';
+    document.getElementById('btn-inject-footnotes').style.display = 'none';
+    await loadOverview();
+  } catch(e) {
+    showStatus('overview-status', '✗ ' + e.message, 'err');
+  }
+}
+
+async function injectFootnotes() {
+  if (!currentProject) return;
+  const btn       = document.getElementById('btn-inject-footnotes');
+  const detectBtn = document.getElementById('btn-detect-footnotes');
+  const msg       = document.getElementById('overview-footnotes-msg');
+
+  btn.disabled       = true;
+  btn.innerHTML      = '<span class="spinner"></span> Injecting…';
+  detectBtn.disabled = true;
+
+  try {
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/footnotes/inject`);
+    msg.textContent        = `${document.getElementById('overview-footnotes-msg').textContent.split('.')[0]}. Injected ✓ (${data.injected_count} paragraphs)`;
+    btn.style.display      = 'none';
+    detectBtn.disabled     = true;
+    await loadOverview();
+  } catch(e) {
+    showStatus('overview-status', '✗ ' + e.message, 'err');
+    btn.disabled      = false;
+    btn.textContent   = '⚡ Inject Footnotes';
+    detectBtn.disabled = false;
   }
 }
 
@@ -220,7 +324,8 @@ async function deleteProject() {
 
 async function resetProject() {
   if (!currentProject) return;
-  if (!confirm(`Reset project "${currentProject.id}"?\n\nThis will delete all chapters, images, build config and footnotes, keeping only the original document and full.xhtml.`)) return;
+  // if (!confirm(`Reset project "${currentProject.id}"?\n\nThis will delete all chapters, images, build config and footnotes, keeping only the original document and full.xhtml.`)) return;
+  if (!confirm(`Reset project "${currentProject.id}"?\n\nThis will delete all chapter splits, keeping front/back matter, images, and the full converted manuscript (footnotes included if applicable).`)) return;
   try {
     await apiFetch('POST', `/projects/${currentProject.id}/reset`);
     buildConfig = null;
@@ -228,4 +333,3 @@ async function resetProject() {
     loadOverview();
   } catch(e) { showStatus('overview-status', '✗ ' + e.message, 'err'); }
 }
-

@@ -1,0 +1,158 @@
+@charset "utf-8";
+
+/* ── Page setup ──────────────────────────────────────────────────────────── */
+
+@page :first {
+  counter-reset: page {{PAGE_COUNTER_OFFSET}};
+}
+
+@page {
+  size: {{PAGE_WIDTH}} {{PAGE_HEIGHT}};
+
+  margin-top:    {{MARGIN_TOP}};
+  margin-bottom: {{MARGIN_BOTTOM}};
+
+  -prince-margin-inside:  {{MARGIN_INSIDE}};
+  -prince-margin-outside: {{MARGIN_OUTSIDE}};
+
+  @bottom-center { content: none; }
+}
+
+/* ── Main matter: page numbering ─────────────────────────────────────────── */
+
+body.paginated { page: main; }
+
+@page main {
+  @bottom-center {
+    content: counter(page);
+    font-family: "Adobe Garamond Pro", serif;
+    font-size: 10pt;
+  }
+}
+
+/* ── Blank pages: no running content ─────────────────────────────────────── */
+
+@page :blank {
+  @top-left    { content: none; }
+  @top-right   { content: none; }
+  @bottom-center { content: none; }
+}
+
+@page main:blank {
+  @bottom-center { content: none; }
+  @top-left      { content: none; }
+  @top-right     { content: none; }
+}
+
+/* ── Footnote area ───────────────────────────────────────────────────────── */
+
+@page {
+  @footnote {
+    padding-top: 8pt;
+    vertical-align: bottom;
+  }
+}
+
+/* A named page profile with DIFFERENT margins */
+@page special_margins {
+    margin: 15mm 10mm 10mm 20mm; /* Top, Right, Bottom, Left */
+}
+
+/* The class that triggers the switch */
+.different-page {
+    page: special_margins;
+    prince-page-group: start; /* Ensures it treats this as a distinct page block */
+}
+
+/* ── Typography ──────────────────────────────────────────────────────────── */
+
+html { font-size: {{FONT_SIZE}}; }
+
+/* ── PDF page layout ─────────────────────────────────────────────────────── */
+
+@prince-pdf {
+  prince-pdf-page-layout: two-column-right;
+}
+
+/* ── Chapter breaks ──────────────────────────────────────────────────────── */
+
+.chapterBody, .part { break-before: {{CHAPTER_BREAK}}; }
+
+/* ── TOC layout for Prince ───────────────────────────────────────────────── */
+
+ul.leaders li { display: flex; }
+ul.leaders a.tocitem { flex: 1 1 auto; }
+
+ul.leaders a.tocitem::after {
+  content: leader(".") " " target-counter(attr(href), page) !important;
+  margin-left: auto;
+}
+
+/* ── Bookmarks ───────────────────────────────────────────────────────────── */
+
+h1, h2.chapter {
+  -prince-bookmark-level: 1;
+  -prince-bookmark-label: content(text);
+  -prince-bookmark-state: open;
+}
+
+h2 {
+  -prince-bookmark-level: 2;
+  -prince-bookmark-label: content(text);
+}
+
+h3 {
+  -prince-bookmark-level: 3;
+  -prince-bookmark-label: content(text);
+}
+
+/* ── Footnotes ───────────────────────────────────────────────────────────── */
+
+p {
+  -prince-footnote-policy: keep-with-line;
+}
+
+/* Apply styles to both the generic .fn and your specific print-footnote class */
+.fn, 
+span.print-footnote {
+  float: footnote;
+  footnote-style-position: inside;
+  footnote-display: compact;
+  font-size: 0.75em;
+  line-height: 1.1;
+  text-align: justify;
+  
+  /* Reset these to 0 to align everything to the left */
+  /* margin-left: 1.5em; 
+  margin-right: 1.5em; */
+  margin-left: 0; 
+  margin-right: 0;
+
+  text-indent: 0;
+  
+  padding-top: 0;
+  padding-bottom: 4pt;
+  break-inside: avoid;
+}
+
+.fn::footnote-call,
+span.print-footnote::footnote-call {
+  content: attr(data-display);
+  font-size: 0.65em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+.fn::footnote-marker,
+span.print-footnote::footnote-marker {
+  content: attr(data-display) ". ";
+  footnote-style-position: inside;
+  font-size: 0.85em; /* Relative to the 0.75em above */
+}
+
+/* Margin adjustments */
+.fn.one::footnote-call, .print-footnote.one::footnote-call { margin-left: 0.1em; }
+.fn.two::footnote-call, .print-footnote.two::footnote-call { margin-left: 0.2em; }
+
+i + .fn::footnote-call, 
+i + .print-footnote::footnote-call { margin-left: 0.1em; }

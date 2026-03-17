@@ -16,13 +16,6 @@
     <span class="topbar-project" id="topbar-project"></span>
     <div class="topbar-right">
       <span id="topbar-status" style="font-family:var(--mono);font-size:0.7rem;color:var(--text3)"></span>
-      <div id="fs-control">
-        <span id="fs-control-label">Text</span>
-        <button class="fs-btn" data-size="1.1rem"  style="font-size:0.88rem" title="Small">A</button>
-        <button class="fs-btn" data-size="1.15rem" style="font-size:1rem"    title="Medium">A</button>
-        <button class="fs-btn" data-size="1.2rem"  style="font-size:1.2rem"  title="Large">A</button>
-        <button class="fs-btn" data-size="1.25rem" style="font-size:1.35rem" title="X-Large">A</button>
-      </div>
     </div>
   </header>
 
@@ -35,7 +28,7 @@
     <div class="sidebar-section hidden" id="project-nav">
       <div class="sidebar-label">Current Project</div>
       <div class="nav-item" data-panel="overview"><span class="icon">◉</span> Overview</div>
-      <div class="nav-item" data-panel="split"><span class="icon">✂</span> Split</div>
+      <div class="nav-item" data-panel="split"><span class="icon">✂</span> Split/Footnotes</div>
       <div class="nav-item" data-panel="build"><span class="icon">⚙</span> Build</div>
       <div class="nav-item" data-panel="editor"><span class="icon">✎</span> Editor</div>
       <div class="nav-item" data-panel="pdf"><span class="icon">⎙</span> PDF Tools</div>
@@ -102,21 +95,50 @@
       <div class="panel-header">
         <span class="panel-title">Split into Chapters</span>
         <span style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">Click any paragraph to mark a split point</span>
+        <span style="display:flex;align-items:center;gap:0.25rem;">
+          <button class="btn" id="btn-split-fs-down" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Decrease text font">−</button>
+          <span id="split-fs-label" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);min-width:2.2rem;text-align:center">16px</span>
+          <button class="btn" id="btn-split-fs-up" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Increase text font">+</button>
+        </span>
       </div>
       <div class="split-layout">
         <div class="split-text-area" id="split-text-area">
           <div style="font-family:var(--mono);font-size:0.78rem;color:var(--text3);padding:2rem 0">Select a project to load the manuscript.</div>
         </div>
         <div class="split-sidebar">
-          <div class="split-sidebar-head">Split points — <span id="split-count">0</span></div>
-          <div class="split-list" id="split-list">
-            <div class="split-list-empty">No splits yet.<br>Click in the text to add one.</div>
+          <div class="split-sidebar-tabs">
+            <button class="split-tab active" id="btn-split-tab-splits">✂ Splits</button>
+            <button class="split-tab" id="btn-split-tab-footnotes">fn Footnotes</button>
           </div>
-          <div class="split-sidebar-foot">
-            <div id="split-existing-banner" style="display:none;font-family:var(--mono);font-size:0.72rem;color:var(--amber);background:rgba(181,130,10,0.08);border:1px solid rgba(181,130,10,0.3);border-radius:3px;padding:0.4rem 0.6rem;display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.25rem"></div>
-            <div id="split-status"></div>
-            <button class="btn primary" id="btn-apply-splits">✂ Apply splits</button>
-            <button class="btn danger" id="btn-clear-splits">Clear markers</button>
+          <!-- Splits view -->
+          <div id="split-view" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+            <div class="split-sidebar-head">Auto-detect</div>
+            <div style="padding:0.4rem 0.75rem 0.5rem;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:0.4rem">
+              <div style="display:flex;gap:0.75rem;font-family:var(--mono);font-size:0.72rem;color:var(--text2)">
+                <label><input type="checkbox" id="auto-h1" checked> h1</label>
+                <label><input type="checkbox" id="auto-h2"> h2</label>
+                <label><input type="checkbox" id="auto-h3"> h3</label>
+              </div>
+              <input class="form-input" type="text" id="auto-classes" placeholder="CSS classes, comma-separated" style="font-size:0.72rem;padding:0.2rem 0.4rem">
+              <button class="btn" id="btn-auto-split" style="font-size:0.72rem;padding:0.2rem 0.5rem">⚡ Auto-detect splits</button>
+            </div>
+            <div class="split-sidebar-head" style="margin-top:0.25rem">Split points — <span id="split-count">0</span></div>
+            <div class="split-list" id="split-list">
+              <div class="split-list-empty">No splits yet.<br>Click in the text to add one.</div>
+            </div>
+            <div class="split-sidebar-foot">
+              <div id="split-existing-banner" style="display:none;font-family:var(--mono);font-size:0.72rem;color:var(--amber);background:rgba(181,130,10,0.08);border:1px solid rgba(181,130,10,0.3);border-radius:3px;padding:0.4rem 0.6rem;display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.25rem"></div>
+              <div id="split-status"></div>
+              <button class="btn primary" id="btn-apply-splits">✂ Apply splits</button>
+              <button class="btn danger" id="btn-clear-splits">Clear markers</button>
+            </div>
+          </div>
+          <!-- Footnotes review view -->
+          <div id="footnotes-view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+            <div class="split-sidebar-head">Footnotes</div>
+            <div id="footnotes-review-list" style="flex:1;overflow-y:auto;padding:0.5rem 0">
+              <div class="split-list-empty">No footnotes detected.<br>Run detection in Overview first.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -130,14 +152,6 @@
           <div class="editor-filelist" id="editor-filelist"></div>
         </div>
         <div class="editor-main">
-          <!-- Ignore words panel — spans full height of editor-main -->
-          <div class="ignore-panel" id="ignore-panel">
-            <div class="ignore-panel-head">
-              <span class="ignore-panel-title">Exceptions</span>
-              <button class="ignore-panel-close" id="btn-ignore-close" title="Close">×</button>
-            </div>
-            <div class="ignore-list" id="ignore-list"></div>
-          </div>
           <div class="editor-toolbar">
             <span class="editor-filename" id="editor-filename">— no file open —</span>
             <button class="fmt-btn" id="btn-bold"   title="Bold (Ctrl+B)"><b>B</b></button>
@@ -145,6 +159,7 @@
             <span class="fmt-sep"></span>
             <button class="fmt-btn hidden" id="btn-insert-fn" title="Insert footnote reference">fn</button>
             <span class="fmt-sep"></span>
+            <!-- MOVED: Grammar controls now in preview pane header
             <select id="lt-lang" class="lt-only">
               <option value="ca-ES">Català</option>
               <option value="es">Español</option>
@@ -153,16 +168,24 @@
               <option value="fr">Français</option>
               <option value="de-DE">Deutsch</option>
             </select>
-            <button class="btn lt-only" id="btn-lt-check">Check grammar</button>
+            <button class="btn" id="btn-lt-check">Check grammar</button>
+            -->
             <span id="monaco-fs-control" class="hidden" style="align-items:center;gap:0.25rem;">
               <button class="btn" id="btn-monaco-fs-down" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Decrease code font">−</button>
               <span id="monaco-fs-label" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);min-width:2.2rem;text-align:center">13px</span>
               <button class="btn" id="btn-monaco-fs-up" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Increase code font">+</button>
             </span>
+            <!-- DISABLED: Text mode removed - always code mode
             <button class="btn" id="btn-toggle-mode" title="Toggle text / code view">⟨/⟩ Code</button>
+            -->
+            <!-- MOVED: Exceptions button now in preview pane header
             <button class="btn lt-only" id="btn-ignore-panel" title="Exception words">☰ Exceptions</button>
+            -->
+            <button class="btn" id="btn-format-xhtml" title="Format / pretty-print XHTML">⟨/⟩</button>
             <button class="btn primary" id="btn-save-chapter">Save</button>
-            <button class="btn hidden" id="btn-preview-file" title="Toggle preview pane">👁 Preview</button>
+            <!-- DISABLED: Preview always visible - no toggle needed
+            <button class="btn lt-only" id="btn-preview-file" style="display:none" onclick="togglePreviewPane()" title="Toggle preview pane">👁 Preview</button>
+            -->
           </div>
           <div class="editor-content-area">
             <div class="editor-scroll active" id="editor-scroll">
@@ -180,14 +203,39 @@
         <div class="preview-pane" id="preview-pane">
           <div class="preview-pane-header">
             <span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);flex:1">Preview</span>
-            <button class="btn" id="btn-preview-mode-toggle" style="padding:0.2rem 0.5rem;font-size:0.7rem" title="Toggle digital/print preview">Digital | Print</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="1.15rem" style="font-size:0.75rem" title="Small">A</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="1.25rem" style="font-size:0.88rem" title="Medium">A</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="1.35rem" style="font-size:1rem"   title="Large">A</button>
-            <button class="fs-btn pv-fs-btn" data-pvsize="1.45rem" style="font-size:1.15rem" title="X-Large">A</button>
-            <button class="btn danger" id="btn-preview-close" style="padding:0.15rem 0.5rem;font-size:0.72rem;margin-left:0.5rem">✕</button>
+            <button class="btn mode-digital" id="btn-preview-mode-toggle">
+                <span class="mode-label-digital">Digital</span> | 
+                <span class="mode-label-print">Print</span>
+            </button>
+            <!-- Grammar check controls -->
+            <select id="lt-lang" style="font-size:0.7rem;padding:0.25rem 0.4rem">
+              <option value="ca-ES">Català</option>
+              <option value="es">Español</option>
+              <option value="en-US">English (US)</option>
+              <option value="en-GB">English (GB)</option>
+              <option value="fr">Français</option>
+              <option value="de-DE">Deutsch</option>
+            </select>
+            <button class="btn" id="btn-lt-check" style="font-size:0.7rem;padding:0.25rem 0.5rem;white-space:nowrap">✓ Grammar</button>
+            <!-- <button class="btn" id="btn-ignore-panel" style="font-size:0.7rem;padding:0.25rem 0.5rem" title="Exception words">☰ Exceptions</button> -->
+            <button class="btn" id="btn-ignore-panel" style="font-size:0.7rem;padding:0.25rem 0.5rem" title="Exception words">☰ Exceptions</button>
+            <span style="display:flex;align-items:center;gap:0.25rem;">
+              <button class="btn" id="btn-pv-fs-down" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Decrease preview font">−</button>
+              <span id="pv-fs-label" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);min-width:2.2rem;text-align:center">16px</span>
+              <button class="btn" id="btn-pv-fs-up" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Increase preview font">+</button>
+            </span>
+
           </div>
           <div class="preview-pane-body" id="preview-pane-body"></div>
+          <!-- Ignore words panel — inside preview pane -->
+          <div class="ignore-panel" id="ignore-panel">
+            <div class="ignore-panel-head">
+              <span class="ignore-panel-title">Exceptions</span>
+              <!-- <button class="ignore-panel-close" id="btn-ignore-close" title="Close">×</button> -->
+               <button class="ignore-panel-close" id="btn-ignore-close" title="Close">×</button>
+            </div>
+            <div class="ignore-list" id="ignore-list"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -200,7 +248,7 @@
         </div>
         <span id="build-profile-badge" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3)">digital</span>
       </div>
-      <div class="panel-body" style="display:grid;grid-template-columns:240px 1fr 240px;gap:1.25rem;align-items:start;overflow-y:auto;height:100%;padding:1rem 1.25rem">
+      <div class="panel-body" style="display:grid;grid-template-columns:minmax(0,240px) minmax(0,1fr) minmax(0,480px);gap:1.25rem;align-items:start;overflow-y:auto;height:100%;padding:1rem 1.25rem">
         <div>
           <div id="build-status" style="margin-bottom:0.75rem"></div>
           <div class="build-section">
@@ -208,13 +256,12 @@
               Front matter
               <button class="btn" id="btn-add-front" style="padding:0.25rem 0.6rem;font-size:0.72rem">+ Add</button>
             </div>
+            <div id="build-front-blanks" class="build-blanks-row hidden"></div>
             <div id="build-front-list" class="build-item-list"></div>
           </div>
           <div class="build-section">
             <div class="build-section-head">Chapters
-              <span id="chapters-dirty-badge" class="chapters-dirty-badge hidden">● unsaved</span>
               <button class="btn" id="btn-add-chapter" style="padding:0.25rem 0.6rem;font-size:0.72rem">+ New</button>
-              <button class="btn primary hidden" id="btn-save-chapters" style="padding:0.25rem 0.6rem;font-size:0.72rem">Save</button>
             </div>
             <div id="build-chapter-list" class="build-item-list"></div>
           </div>
@@ -223,6 +270,7 @@
               Back matter
               <button class="btn" id="btn-add-back" style="padding:0.25rem 0.6rem;font-size:0.72rem">+ Add</button>
             </div>
+            <div id="build-back-blanks" class="build-blanks-row hidden"></div>
             <div id="build-back-list" class="build-item-list"></div>
           </div>
         </div>
@@ -237,66 +285,77 @@
             <button class="btn hidden" id="btn-build-preview-edit">✎ Open in Editor</button>
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:1rem;position:sticky;top:0">
-          <div class="build-card">
-            <div class="build-card-title">Images</div>
-            <div id="image-list" style="margin:0.4rem 0;display:flex;flex-direction:column;gap:0.3rem;max-height:200px;overflow-y:auto"></div>
-            <label class="btn" style="cursor:pointer;margin-top:0.3rem;text-align:center">
-              ⊕ Upload image
-              <input type="file" id="image-upload-input" accept="image/*" class="hidden">
-            </label>
-          </div>
-          <!-- footnotes: collapsed = just upload link, expanded = full card -->
-          <div id="fn-card-collapsed" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">
-            <label style="cursor:pointer;color:var(--text3)">
-              ⊕ Upload footnotes
-              <input type="file" id="footnote-upload-input" accept=".txt" class="hidden">
-            </label>
-          </div>
-          <div id="fn-card-expanded" class="build-card hidden">
-            <div class="build-card-title">Footnotes</div>
-            <div id="footnote-status" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.75rem"></div>
-            <div style="margin-bottom:0.75rem">
-              <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:0.4rem">Variants</div>
-              <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.5rem">
-                <span style="color:var(--text2)">def</span> is always available. Add extra codes for spacing variants.
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;align-items:start;position:sticky;top:0">
+          <!-- Left sub-column: Metadata top, Images bottom -->
+          <div style="display:flex;flex-direction:column;gap:1rem">
+            <div class="build-card">
+              <div class="build-card-title">Metadata</div>
+              <div class="form-group" style="margin-bottom:0.5rem">
+                <label class="form-label">Author</label>
+                <input class="form-input" type="text" id="build-author" placeholder="Author name" style="font-size:0.82rem">
               </div>
-              <div id="fn-variants-list" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem"></div>
-              <div style="display:flex;gap:0.4rem;align-items:center">
-                <input id="fn-variant-input" class="form-input" type="text" placeholder="e.g. one" maxlength="10"
-                  style="width:80px;font-size:0.78rem;padding:0.3rem 0.5rem"
-                  >
-                <button class="btn" id="btn-add-fn-variant" style="padding:0.3rem 0.6rem">+ Add</button>
+              <div class="form-group" style="margin-bottom:0.5rem">
+                <label class="form-label">Language</label>
+                <input class="form-input" type="text" id="build-language" placeholder="ca" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Publisher</label>
+                <input class="form-input" type="text" id="build-publisher" placeholder="BonPort" style="font-size:0.82rem">
               </div>
             </div>
-            <button class="btn" id="btn-delete-footnotes">✕ Remove footnotes</button>
-          </div>
-          <div class="build-card">
-            <div class="build-card-title">Metadata</div>
-            <div class="form-group" style="margin-bottom:0.5rem">
-              <label class="form-label">Author</label>
-              <input class="form-input" type="text" id="build-author" placeholder="Author name" style="font-size:0.82rem">
-            </div>
-            <div class="form-group" style="margin-bottom:0.5rem">
-              <label class="form-label">Language</label>
-              <input class="form-input" type="text" id="build-language" placeholder="ca" style="font-size:0.82rem">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label class="form-label">Publisher</label>
-              <input class="form-input" type="text" id="build-publisher" placeholder="BonPort" style="font-size:0.82rem">
+            <div class="build-card">
+              <div class="build-card-title">Images</div>
+              <div id="image-list" style="margin:0.4rem 0;display:flex;flex-direction:column;gap:0.3rem;max-height:200px;overflow-y:auto"></div>
+              <label class="btn" style="cursor:pointer;margin-top:0.3rem;text-align:center">
+                ⊕ Upload image
+                <input type="file" id="image-upload-input" accept="image/*" class="hidden">
+              </label>
             </div>
           </div>
-          <div class="build-card">
-            <div class="build-card-title">Actions</div>
-            <div style="display:flex;flex-direction:column;gap:0.5rem">
-              <button class="btn" id="btn-hyphenate" disabled>⟳ Hyphenate chapters</button>
-              <button class="btn" id="btn-dehyphenate" disabled>✕ Remove hyphens</button>
-              <button class="btn primary" id="btn-build-epub">↓ Build EPUB</button>
-              <button class="btn" id="btn-convert-pdf" disabled title="Coming soon">⎙ Convert to PDF</button>
-              <button class="btn" id="btn-add-css">+ New CSS file</button>
-              <button class="btn danger" id="btn-reset-build" title="Reset to defaults">↺ Reset to chapters only</button>
+          <!-- Right sub-column: Actions top, Footnotes bottom -->
+          <div style="display:flex;flex-direction:column;gap:1rem">
+            <div class="build-card">
+              <div class="build-card-title">Actions</div>
+              <div style="display:flex;flex-direction:column;gap:0.5rem">
+                <button class="btn" id="btn-hyphenate" disabled>⟳ Hyphenate chapters</button>
+                <button class="btn" id="btn-dehyphenate" disabled>✕ Remove hyphens</button>
+                <div style="margin-top:0.25rem;padding-top:0.5rem;border-top:1px solid var(--border)"></div>
+                <button class="btn" id="btn-add-css">+ New CSS file</button>
+                <div style="margin-top:0.25rem;padding-top:0.5rem;border-top:1px solid var(--border)">
+                  <span id="build-profile-label" style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent)"></span>
+                </div>
+                <button class="btn primary" id="btn-build-epub">↓ Build EPUB</button>
+                <button class="btn danger" id="btn-reset-build">↺ Reset to matter</button>
+                <button class="btn print-only-btn" id="btn-build-toc">☰ Build TOC</button>
+                <button class="btn print-only-btn" id="btn-convert-pdf" disabled title="Coming soon">⎙ Convert to PDF</button>
+                <!-- <button class="btn danger" id="btn-reset-build" title="Reset to defaults">↺ Reset to matter</button> -->
+              </div>
+              <div id="build-action-status" style="margin-top:0.5rem"></div>
             </div>
-            <div id="build-action-status" style="margin-top:0.5rem"></div>
+            <!-- footnotes: collapsed = just upload link, expanded = full card -->
+            <div id="fn-card-collapsed" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">
+              <label style="cursor:pointer;color:var(--text3)">
+                ⊕ Upload footnotes
+                <input type="file" id="footnote-upload-input" accept=".txt" class="hidden">
+              </label>
+            </div>
+            <div id="fn-card-expanded" class="build-card hidden">
+              <div class="build-card-title">Footnotes</div>
+              <div id="footnote-status" style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.75rem"></div>
+              <div style="margin-bottom:0.75rem">
+                <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:0.4rem">Variants</div>
+                <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3);margin-bottom:0.5rem">
+                  <span style="color:var(--text2)">def</span> is always available. Add extra codes for spacing variants.
+                </div>
+                <div id="fn-variants-list" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem"></div>
+                <div style="display:flex;gap:0.4rem;align-items:center">
+                  <input id="fn-variant-input" class="form-input" type="text" placeholder="e.g. one" maxlength="10"
+                    style="width:80px;font-size:0.78rem;padding:0.3rem 0.5rem">
+                  <button class="btn" id="btn-add-fn-variant" style="padding:0.3rem 0.6rem">+ Add</button>
+                </div>
+              </div>
+              <button class="btn" id="btn-delete-footnotes">✕ Remove footnotes</button>
+            </div>
           </div>
         </div>
       </div>
@@ -312,13 +371,153 @@
           <button class="btn danger" id="btn-reset-project">↺ Reset to full.xhtml</button>
           <button class="btn danger" id="btn-delete-project">✕ Delete project</button>
         </div>
+        <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+          <button class="btn primary" id="btn-detect-footnotes" disabled>⎆ Detect Footnotes</button>
+          <button class="btn primary" id="btn-inject-footnotes" style="display:none">⚡ Inject Footnotes</button>
+          <div id="overview-footnotes" style="display:none;margin-top:1rem;font-family:var(--mono);font-size:0.75rem;color:var(--text2);line-height:1.8">
+            <span id="overview-footnotes-msg"></span>
+            <div style="margin-top:0.75rem">
+              <button class="btn danger" id="btn-reset-footnotes" style="display:none">↺ Reset footnotes</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- PDF Tools -->
     <div class="panel" id="panel-pdf">
-      <div class="panel-header"><span class="panel-title">PDF Tools</span></div>
-      <div class="panel-body"><p style="font-family:var(--mono);font-size:0.78rem;color:var(--text3)">Page management, numbering and shifting — coming soon.</p></div>
+      <div class="panel-header">
+        <span class="panel-title">PDF Tools</span>
+        <span id="pdf-project-badge" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);margin-left:1rem"></span>
+      </div>
+      <div class="panel-body" style="display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:1.25rem;align-items:start;overflow-y:auto;height:100%;padding:1rem 1.25rem">
+
+        <!-- Left column: config + actions -->
+        <div class="pdf-left-col" style="display:flex;flex-direction:column;gap:1rem">
+
+          <!-- Print EPUBs selector -->
+          <div class="build-card">
+            <div class="build-card-title">Print EPUBs</div>
+            <div id="pdf-epub-list" style="overflow-y:auto;max-height:88px;margin-bottom:0.4rem">
+              <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No print EPUBs found.</div>
+            </div>
+          </div>
+
+          <!-- Page setup -->
+          <div class="build-card">
+            <div class="build-card-title">Page</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Width</label>
+                <input class="form-input" id="pdf-page-width" type="text" placeholder="128.524mm" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Height</label>
+                <input class="form-input" id="pdf-page-height" type="text" placeholder="198.374mm" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Margin top</label>
+                <input class="form-input" id="pdf-margin-top" type="text" placeholder="17mm" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Margin bottom</label>
+                <input class="form-input" id="pdf-margin-bottom" type="text" placeholder="21mm" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Inside margin</label>
+                <input class="form-input" id="pdf-margin-inside" type="text" placeholder="20mm" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Outside margin</label>
+                <input class="form-input" id="pdf-margin-outside" type="text" placeholder="14mm" style="font-size:0.82rem">
+              </div>
+            </div>
+          </div>
+
+          <!-- Typography -->
+          <div class="build-card">
+            <div class="build-card-title">Typography</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Font size</label>
+                <input class="form-input" id="pdf-font-size" type="text" placeholder="12pt" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label">Page counter offset</label>
+                <input class="form-input" id="pdf-counter-offset" type="number" placeholder="-2" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin:0;grid-column:1/-1">
+                <label class="form-label">Chapter break</label>
+                <select class="form-input" id="pdf-chapter-break" style="font-size:0.82rem">
+                  <option value="right">Right (recto)</option>
+                  <option value="left">Left (verso)</option>
+                  <option value="auto">Auto</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Conversion -->
+          <div class="build-card">
+            <div class="build-card-title">Conversion</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem">
+              <div style="display:flex;align-items:center;gap:0.5rem">
+                <input type="checkbox" id="pdf-trim" style="cursor:pointer">
+                <label for="pdf-trim" class="form-label" style="margin:0;cursor:pointer">Trim pages (qpdf)</label>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Trim start</label>
+                  <input class="form-input" id="pdf-trim-start" type="number" min="0" placeholder="2" style="font-size:0.82rem">
+                </div>
+                <div class="form-group" style="margin:0">
+                  <label class="form-label">Trim end</label>
+                  <input class="form-input" id="pdf-trim-end" type="number" min="0" placeholder="1" style="font-size:0.82rem">
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:0.5rem">
+                <input type="checkbox" id="pdf-keep-prince" style="cursor:pointer">
+                <label for="pdf-keep-prince" class="form-label" style="margin:0;cursor:pointer">Keep pre-trim Prince PDF</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="build-card">
+            <div class="build-card-title">Actions</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem">
+              <button class="btn" id="btn-pdf-save-config">💾 Save settings</button>
+              <button class="btn primary" id="btn-pdf-convert">⎙ Convert to PDF</button>
+            </div>
+            <div id="pdf-action-status" style="margin-top:0.5rem"></div>
+            <div id="pdf-log-wrap" class="hidden" style="margin-top:0.75rem">
+              <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:0.3rem">Conversion log</div>
+              <pre id="pdf-log" style="font-family:var(--mono);font-size:0.68rem;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:0.5rem;max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0"></pre>
+            </div>
+          </div>
+
+          <!-- History -->
+          <div class="build-card">
+            <div class="build-card-title">History</div>
+            <div id="pdf-history-list" style="display:flex;flex-direction:column;gap:0.35rem;max-height:240px;overflow-y:auto">
+              <div style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No conversions yet.</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right column: PDF viewer -->
+        <div style="display:flex;flex-direction:column;gap:0.5rem;height:100%">
+          <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);padding:0.3rem 0;border-bottom:1px solid var(--border)">
+            PDF Preview — <span id="pdf-viewer-filename" style="color:var(--text2)">no PDF loaded</span>
+          </div>
+          <iframe id="pdf-viewer-frame"
+            style="flex:1;width:100%;min-height:700px;border:1px solid var(--border);border-radius:3px;background:var(--surface2)"
+            src="about:blank">
+          </iframe>
+        </div>
+
+      </div>
     </div>
 
   </main>
@@ -339,6 +538,23 @@
 </div>
 <div id="fn-dialog-overlay" class="hidden" style="position:fixed;inset:0;z-index:999"></div>
 
+<!-- Unsaved changes modal -->
+<div id="dirty-dialog" class="hidden" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:1.25rem;
+  z-index:1001;min-width:280px;box-shadow:0 4px 20px rgba(0,0,0,0.3)">
+  <div style="font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;
+    color:var(--text3);margin-bottom:0.5rem">Unsaved changes</div>
+  <div style="font-family:var(--serif);font-size:0.9rem;color:var(--text);margin-bottom:1rem">
+    <strong id="dirty-dialog-filename"></strong> has unsaved changes.
+  </div>
+  <div style="display:flex;gap:0.5rem;justify-content:flex-end">
+    <button class="btn" id="dirty-btn-cancel">Cancel</button>
+    <button class="btn" id="dirty-btn-discard">Discard</button>
+    <button class="btn primary" id="dirty-btn-save">Save</button>
+  </div>
+</div>
+<div id="dirty-dialog-overlay" class="hidden" style="position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.15)"></div>
+
 
 <div id="lt-popover">
   <div class="pop-rule" id="pop-rule"></div>
@@ -357,8 +573,11 @@ window.monacoBase = '/publisher/static/monaco/vs';
 <script src="/publisher/static/js/globals.js"></script>
 <script src="/publisher/static/js/monaco.js"></script>
 <script src="/publisher/static/js/projects.js"></script>
+<script src="/publisher/static/js/split.js"></script>
+<script src="/publisher/static/js/footnotes.js"></script>
 <script src="/publisher/static/js/editor.js"></script>
 <script src="/publisher/static/js/build.js"></script>
+<script src="/publisher/static/js/pdf.js"></script>
 <script src="/publisher/static/js/features.js"></script>
 <script src="/publisher/static/js/handlers.js"></script>
 </body>

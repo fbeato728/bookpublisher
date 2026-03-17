@@ -15,14 +15,16 @@
     },
     "templates": {
       "chapter": {
-        "description": "Standard chapter XHTML template"
+        "description": "Standard chapter XHTML template",
+        "body_class": "mainmatter paginated"
       },
       "blank": {
         "description": "Blank chapter XHTML template",
         "body_class": "normalText",
         "body_content": "<p class=\"normalText\"></p>"
       }
-    }
+    },
+    "autopaging": true
   },
 
   "chapters": {
@@ -58,55 +60,6 @@
       "meta": "meta.json",
       "build_config": "build_config.json",
       "full_xhtml": "full.xhtml"
-    }
-  },
-
-  "tokens": {
-    "template_tokens": {
-      "{{TITLE}}": {
-        "meta_field": "title",
-        "default": ""
-      },
-      "{{AUTHOR}}": {
-        "meta_field": "author",
-        "default": ""
-      },
-      "{{COVER_IMAGE}}": {
-        "meta_field": "digital_cover",
-        "default": ""
-      },
-      "{{FIRST_EDITION}}": {
-        "meta_field": "first_edition",
-        "default": ""
-      },
-      "{{ORIGINAL_TITLE}}": {
-        "meta_fields": ["original_title", "title"],
-        "default": ""
-      },
-      "{{ORIGINAL_YEAR}}": {
-        "meta_field": "original_year",
-        "default": ""
-      },
-      "{{ORIGINAL_AUTHOR}}": {
-        "meta_fields": ["original_author", "author"],
-        "default": ""
-      },
-      "{{TRANSLATOR}}": {
-        "meta_field": "translator",
-        "default": ""
-      },
-      "{{TRANSLATION_YEAR}}": {
-        "meta_field": "translation_year",
-        "default": ""
-      },
-      "{{ISBN}}": {
-        "meta_field": "isbn",
-        "default": ""
-      },
-      "{{DEPOT_LEGAL}}": {
-        "meta_field": "depot_legal",
-        "default": ""
-      }
     }
   },
 

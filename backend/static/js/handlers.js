@@ -18,21 +18,46 @@ document.getElementById('tab-epub').addEventListener('click', () => setUploadMod
 document.getElementById('input-project-id').addEventListener('input', function () {
   this.value = this.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
 });
+document.getElementById('upload-area').addEventListener('click', onUploadAreaClick);
+document.getElementById('upload-area').addEventListener('dragover', onUploadDragover);
+document.getElementById('upload-area').addEventListener('dragleave', onUploadDragleave);
+document.getElementById('upload-area').addEventListener('drop', onUploadDrop);
+document.getElementById('file-input').addEventListener('change', onFileInputChange);
+document.getElementById('btn-upload').addEventListener('click', uploadManuscript);
 
 // ── Editor panel ──────────────────────────────────────────────────────────────
+document.getElementById('btn-lt-check').addEventListener('click', checkGrammar);
 document.getElementById('btn-insert-fn').addEventListener('click', showFootnoteInsertDialog);
 document.getElementById('btn-preview-mode-toggle').addEventListener('click', togglePreviewMode);
-document.getElementById('btn-preview-close').addEventListener('click', togglePreviewPane);
 document.getElementById('btn-ignore-panel').addEventListener('click', toggleIgnorePanel);
 document.getElementById('btn-ignore-close').addEventListener('click', toggleIgnorePanel);
-document.getElementById('btn-preview-file').addEventListener('click', togglePreviewPane);
+document.getElementById('btn-save-chapter').addEventListener('click', saveChapter);
+document.getElementById('btn-format-xhtml').addEventListener('click', formatXhtml);
+document.getElementById('btn-auto-split').addEventListener('click', autoSplitDetect);
+document.getElementById('btn-apply-splits').addEventListener('click', applySplits);
+document.getElementById('btn-clear-splits').addEventListener('click', clearAllSplits);
+document.getElementById('btn-split-tab-splits').addEventListener('click', showSplitsView);
+document.getElementById('btn-split-tab-footnotes').addEventListener('click', showFootnotesView);
+document.getElementById('btn-bold').addEventListener('click', () => applyFormat('b'));
+document.getElementById('btn-italic').addEventListener('click', () => applyFormat('i'));
+document.getElementById('btn-monaco-fs-up').addEventListener('click', monacoFsUp);
+document.getElementById('btn-monaco-fs-down').addEventListener('click', monacoFsDown);
+document.getElementById('editor-content').addEventListener('input', onEditorContentInput);
+document.getElementById('editor-content').addEventListener('keyup', updateFormatButtons);
+document.getElementById('editor-content').addEventListener('mouseup', updateFormatButtons);
+document.getElementById('editor-content').addEventListener('selectionchange', updateFormatButtons);
+document.getElementById('preview-pane-body').addEventListener('click', onPreviewLtClick);
+document.getElementById('preview-pane-body').addEventListener('click', onPreviewClick);
+document.addEventListener('keydown', onEditorKeydown);
+document.addEventListener('keydown', onDocumentFormatKeydown);
+document.addEventListener('click', onDocumentClickHidePopover);
 
 // ── Build panel ───────────────────────────────────────────────────────────────
 document.getElementById('build-tab-digital').addEventListener('click', () => setBuildProfile('digital'));
 document.getElementById('build-tab-print').addEventListener('click', () => setBuildProfile('print'));
 document.getElementById('btn-add-front').addEventListener('click', () => addBuildItem('front'));
 document.getElementById('btn-add-chapter').addEventListener('click', addBuildChapter);
-document.getElementById('btn-save-chapters').addEventListener('click', saveChapters);
+// document.getElementById('btn-save-chapters').addEventListener('click', saveChapters);
 document.getElementById('btn-add-back').addEventListener('click', () => addBuildItem('back'));
 document.getElementById('btn-build-preview-edit').addEventListener('click',
   () => openBuildItemInEditor().catch(e => console.error('openBuildItemInEditor error:', e)));
@@ -61,8 +86,16 @@ document.getElementById('btn-reset-build').addEventListener('click', resetBuildC
 // ── Project management ────────────────────────────────────────────────────────
 document.getElementById('btn-reset-project').addEventListener('click', resetProject);
 document.getElementById('btn-delete-project').addEventListener('click', deleteProject);
+document.getElementById('btn-detect-footnotes').addEventListener('click', detectFootnotes);
+document.getElementById('btn-reset-footnotes').addEventListener('click', resetFootnotes);
+document.getElementById('btn-inject-footnotes').addEventListener('click', injectFootnotes);
 
 // ── Dialogs & popovers ────────────────────────────────────────────────────────
 document.getElementById('btn-close-fn-dialog').addEventListener('click', closeFnDialog);
 document.getElementById('fn-dialog-overlay').addEventListener('click', closeFnDialog);
 document.getElementById('pop-ignore-btn').addEventListener('click', ignoreCurrentWord);
+// ── PDF Tools ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-convert-pdf').addEventListener('click', goToPdfTools);
+document.getElementById('btn-build-toc').addEventListener('click', buildToc);
+document.getElementById('btn-pdf-save-config').addEventListener('click', savePdfConfig);
+document.getElementById('btn-pdf-convert').addEventListener('click', convertToPdf);

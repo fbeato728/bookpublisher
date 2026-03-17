@@ -29,7 +29,6 @@ def escape_xml(text):
         text = text.replace(char, escape_seq)
     return text
 
-
 def build_xhtml_start(title):
     """Build XHTML opening from config."""
     xhtml_cfg = CONFIG['xhtml']
@@ -53,7 +52,6 @@ def build_xhtml_start(title):
         f"  </head>\n"
         f"  <body>"
     )
-
 
 def get_xhtml_end():
     """Get XHTML closing from config."""
@@ -165,7 +163,10 @@ def convert_docx(docx_path, book_title="Untitled", images_dir=None):
         if style_name in heading_map:
             tag = heading_map[style_name]['tag']
             css_class = heading_map[style_name]['class']
-            body += f'\n\t<{tag} class="{css_class}">{para_content.strip()}</{tag}>'
+            wrapper_open = heading_map[style_name].get('wrapper', '')
+            wrapper_close = '</div>' if wrapper_open else ''
+            inner = f'<{tag} class="{css_class}">{para_content.strip()}</{tag}>'
+            body += f'\n\t{wrapper_open}{inner}{wrapper_close}'
         elif style_name.startswith('Heading'):
             # Fallback for unmapped heading styles
             level = ''.join(c for c in style_name if c.isdigit())

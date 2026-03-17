@@ -46,5 +46,18 @@
       ],
       "back_matter": []
     }
-  }
+  },
+  "footnotes": {
+    "digital": {
+      "inline": "<a class=\"digital-footnote\" id=\"fnreturn-{NNNN}\" href=\"footnotes.xhtml#footnote-{NNNN}\" epub:type=\"noteref\"><sup>{N}</sup></a>",
+      "footnotes_xhtml": {
+        "head": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xmlns:epub=\"http://www.idpf.org/2007/ops\">\n  <head>\n    <title>{TITLE}</title>\n    <link rel=\"stylesheet\" href=\"../styles/main.css\" type=\"text/css\" media=\"screen\"/>\n  </head>\n  <body class=\"digital-only\">",
+        "entry": "  <div class=\"footnote\" id=\"footnote-{NNNN}\">\n    <p class=\"fnparagraph\" id=\"fnreturn-{NNNN}\">({N}) {CONTENT}<a href=\"{CHAPTER}.xhtml#fnreturn-{NNNN}\"><strong>↵</strong></a></p>\n  </div>",
+        "foot": "  </body>\n</html>"
+      }
+    },
+    "print": {
+      "inline": "<span class=\"print-footnote\" data-display=\"{N}\">{CONTENT}</span>"
+    }
+  }  
 }

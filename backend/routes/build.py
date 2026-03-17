@@ -11,13 +11,16 @@ from lxml import etree
 build_bp = Blueprint('build', __name__)
 
 from config import PROJECTS_DIR, GLOBAL_DIR, BUILDS_DIR
+from routes.utils import fill_tokens as _fill_tokens_util
 
 # ── Global asset paths ────────────────────────────────────────────────────────
 GLOBAL_STYLES = os.path.join(GLOBAL_DIR, 'styles')
 GLOBAL_FONTS  = os.path.join(GLOBAL_DIR, 'fonts')
 GLOBAL_TEMPLATES = os.path.join(GLOBAL_DIR, 'templates')  # blank04, title_only, nav, toc
 GLOBAL_CONFIG = os.path.join(GLOBAL_DIR, 'config')
-BUILD_CONFIG_FILE = os.path.join(GLOBAL_CONFIG, 'build.json')  # default build profiles
+GLOBAL_JSON   = os.path.join(GLOBAL_CONFIG, 'global.json')
+TOKENS_PATH   = os.path.join(GLOBAL_CONFIG, 'tokens.json')
+BUILD_JSON    = os.path.join(GLOBAL_CONFIG, 'build.json')
 
 # ── XHTML templates ───────────────────────────────────────────────────────────
 BLANK_XHTML = """<?xml version='1.0' encoding='UTF-8'?>
@@ -161,24 +164,126 @@ def read_xhtml_file(project_id, filename):
         return read_xhtml_file(project_id, 'credits.xhtml')
     return None
 
-def fill_template(content, meta, cover_img=''):
-    """Replace {{TOKEN}} placeholders with project metadata."""
-    replacements = {
-        '{{TITLE}}':          meta.get('title', ''),
-        '{{AUTHOR}}':         meta.get('author', ''),
-        '{{COVER_IMAGE}}':    cover_img,
-        '{{FIRST_EDITION}}':  meta.get('first_edition', ''),
-        '{{ORIGINAL_TITLE}}': meta.get('original_title', meta.get('title', '')),
-        '{{ORIGINAL_YEAR}}':  meta.get('original_year', ''),
-        '{{ORIGINAL_AUTHOR}}':meta.get('original_author', meta.get('author', '')),
-        '{{TRANSLATOR}}':     meta.get('translator', ''),
-        '{{TRANSLATION_YEAR}}': meta.get('translation_year', ''),
-        '{{ISBN}}':           meta.get('isbn', ''),
-        '{{DEPOT_LEGAL}}':    meta.get('depot_legal', ''),
-    }
-    for token, value in replacements.items():
-        content = content.replace(token, value)
-    return content
+def fill_template(content, meta):
+    """Replace {{TOKEN}} placeholders with project metadata, driven by tokens.json."""
+    return _fill_tokens_util(content, meta)
+
+
+# ── Footnote transform ────────────────────────────────────────────────────────
+
+def _load_build_config_json():
+    """Load build.json pattern config."""
+    try:
+        with open(BUILD_JSON, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _nnnn(n):
+    """Zero-pad display_num to 4 digits."""
+    return str(n).zfill(4)
+
+
+def _transform_footnote_markers(content, fn_map, chapter_filename, profile, patterns):
+    """Replace fn-marker spans in XHTML content with profile-specific patterns.
+
+    Returns (transformed_content, list_of_footnote_entries_used).
+    footnote_entries_used is only populated for digital profile.
+
+    Strategy: use lxml to find all marker spans and collect their data, then
+    serialize to string and do pattern substitution at string level — avoids
+    all namespace issues when inserting HTML fragments into the lxml tree.
+    """
+    marker_cfg   = patterns.get('marker', {})
+    XHTML_NS     = marker_cfg.get('xhtml_ns', 'http://www.w3.org/1999/xhtml')
+    marker_class = marker_cfg.get('class', 'fn-marker')
+    attr_id      = marker_cfg.get('attr_id', 'data-fn')
+    attr_display = marker_cfg.get('attr_display', 'data-display')
+
+    parser = etree.XMLParser(recover=True, encoding='utf-8')
+    try:
+        root = etree.fromstring(content.encode('utf-8'), parser)
+    except Exception:
+        return content, []
+
+    chapter_base = os.path.splitext(chapter_filename)[0]
+    used_entries  = []
+    replacements  = []  # list of (fn_id, display_num, content_text) in order
+
+    print(f"DEBUG: before spans", flush=True)
+    for span in root.iter(f'{{{XHTML_NS}}}span'):
+        if span.get('class') != marker_class:
+            continue
+        fn_id       = span.get(attr_id)
+        display_str = span.get(attr_display, '')
+        try:
+            display_num = int(display_str)
+        except (ValueError, TypeError):
+            continue
+
+        fn = next((f for f in fn_map.get('footnotes', []) if f.get('id') == fn_id), None)
+        if not fn:
+            continue
+
+        content_text = fn.get('content', '')
+        nnnn         = _nnnn(display_num)
+        replacements.append((fn_id, display_num, nnnn, content_text))
+
+        if profile == 'digital':
+            used_entries.append({
+                'display_num':  display_num,
+                'nnnn':         nnnn,
+                'content':      content_text,
+                'chapter_base': chapter_base,
+            })
+
+    # Serialize to string — pattern substitution happens here, no fragment parsing
+    transformed = etree.tostring(root, encoding='unicode', xml_declaration=False)
+    if not transformed.startswith('<?xml'):
+        transformed = "<?xml version='1.0' encoding='utf-8'?>\n" + transformed
+
+    for fn_id, display_num, nnnn, content_text in replacements:
+        print(f"DEBUG: fn_id={fn_id!r}", flush=True)
+        print(f"DEBUG: transformed snippet={transformed[max(0,transformed.find('fn-marker')-20):transformed.find('fn-marker')+80]!r}", flush=True)
+        
+        # Match the serialized marker span regardless of attribute order
+        marker_re = re.compile(
+            rf'<(?:[\w:]+:)?span[^>]*class="{marker_class}"[^>]*data-fn="'
+            + re.escape(str(fn_id))
+            + r'"[^>]*/?>(?:</(?:[\w:]+:)?span>)?'
+        )
+        if profile == 'digital':
+            tpl = patterns['digital']['inline']
+            replacement = tpl.replace('{NNNN}', nnnn).replace('{N}', str(display_num))
+        elif profile == 'print':
+            tpl = patterns['print']['inline']
+            replacement = tpl.replace('{N}', str(display_num)).replace('{CONTENT}', _esc(content_text))
+        else:
+            continue
+        print(f"DEBUG: {profile} replacement = {replacement}", flush=True)
+        transformed = marker_re.sub(replacement, transformed, count=1)
+        print(f"DEBUG: snippet after sub={transformed[max(0,transformed.find('fn-marker')-20):transformed.find('fn-marker')+80]!r}", flush=True)
+
+    return transformed, used_entries
+
+
+def _build_footnotes_xhtml(entries, title, patterns):
+    """Build footnotes.xhtml content from collected entries."""
+    head = patterns['digital']['footnotes_xhtml']['head'].replace('{TITLE}', _esc(title))
+    foot = patterns['digital']['footnotes_xhtml']['foot']
+    entry_tpl = patterns['digital']['footnotes_xhtml']['entry']
+
+    parts = [head]
+    for e in sorted(entries, key=lambda x: x['display_num']):
+        entry = (entry_tpl
+                 .replace('{NNNN}',    e['nnnn'])
+                 .replace('{N}',       str(e['display_num']))
+                 .replace('{CONTENT}', _esc(e['content']))
+                 .replace('{CHAPTER}', e['chapter_base']))
+        parts.append(entry)
+    parts.append(foot)
+    return '\n'.join(parts)
 
 
 # ── XHTML Validation & CSS Extraction ─────────────────────────────────────────
@@ -282,9 +387,161 @@ def save_build_config_route(project_id):
 def build_epub_route(project_id, profile):
     """POST to build/{profile} triggers EPUB build and returns the file."""
     try:
+        print('before build_epub call')
         epub_path = build_epub(project_id, profile)
         return send_file(epub_path, as_attachment=True, mimetype='application/epub+zip',
                         download_name=f"{project_id}_{profile}.epub")
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+
+@build_bp.route('/api/projects/<project_id>/build-toc', methods=['POST'])
+def build_toc_route(project_id):
+    """Generate TOC entries in the toc:true front matter file for print profile.
+    
+    For every print chapter with pag:true, reads the XHTML to extract:
+      - outermost div id inside <body> → used as anchor
+      - h1 with class from docx_converter.json → fallback to first h1 → link text
+    Clears existing <li> inside <ul> in the toc:true file, then inserts fresh entries.
+    """
+    try:
+        xhtml_dir = os.path.join(PROJECTS_DIR, project_id, 'xhtml')
+        bc_path   = os.path.join(PROJECTS_DIR, project_id, 'build_config.json')
+
+        if not os.path.exists(bc_path):
+            return jsonify({'ok': False, 'error': 'build_config.json not found'}), 400
+
+        with open(bc_path) as f:
+            bc = json.load(f)
+
+        print_cfg = bc.get('print', {})
+
+        # Find toc:true front matter file
+        toc_file = None
+        for fm in print_cfg.get('front_matter', []):
+            if fm.get('toc'):
+                toc_file = fm.get('filename')
+                break
+        if not toc_file:
+            return jsonify({'ok': False, 'error': 'No front matter item with toc:true found in print profile'}), 400
+
+        toc_path = os.path.join(xhtml_dir, toc_file)
+        if not os.path.exists(toc_path):
+            return jsonify({'ok': False, 'error': f'TOC file not found: {toc_file}'}), 400
+
+        # Read h1 class from docx_converter.json
+        converter_json = os.path.join(GLOBAL_CONFIG, 'docx_converter.json')
+        h1_class = None
+        try:
+            with open(converter_json) as f:
+                conv = json.load(f)
+            h1_class = conv.get('heading_map', {}).get('Heading 1', {}).get('class')
+        except Exception:
+            pass
+
+        NS = 'http://www.w3.org/1999/xhtml'
+
+        def get_div_id_and_text(filename):
+            """Extract outermost div id and h1 text from a chapter XHTML file."""
+            fpath = os.path.join(xhtml_dir, filename)
+            if not os.path.exists(fpath):
+                return None, None
+            with open(fpath, encoding='utf-8') as f:
+                content = f.read()
+            try:
+                root = etree.fromstring(content.encode('utf-8'),
+                                        parser=etree.XMLParser(recover=True))
+                body = root.find(f'{{{NS}}}body')
+                if body is None:
+                    body = root.find('body')
+                if body is None:
+                    return None, None
+
+                # Outermost div inside body
+                div_id = None
+                for child in body:
+                    tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                    if tag == 'div':
+                        div_id = child.get('id')
+                        break
+
+                # h1 with specific class, fallback to first h1
+                h1_text = None
+                if h1_class:
+                    for el in root.iter(f'{{{NS}}}h1'):
+                        if h1_class in (el.get('class') or '').split():
+                            h1_text = ''.join(el.itertext()).strip()
+                            break
+                if not h1_text:
+                    for el in root.iter(f'{{{NS}}}h1'):
+                        h1_text = ''.join(el.itertext()).strip()
+                        if h1_text:
+                            break
+
+                return div_id, h1_text
+            except Exception:
+                return None, None
+
+        # Collect li lines for pag:true chapters
+        li_lines = []
+        for ch in print_cfg.get('chapters', []):
+            if not ch.get('pag', True):
+                continue
+            filename = ch.get('filename', '')
+            if not filename:
+                continue
+            div_id, h1_text = get_div_id_and_text(filename)
+            href = f"{filename}#{div_id}" if div_id else filename
+            text = h1_text or ch.get('name', filename)
+            li_lines.append(f'<li><a class="tocitem" href="{href}">{_esc(text)}</a></li>')
+
+        # Read TOC file, clear existing <li> inside <ul>, insert new lines
+        with open(toc_path, encoding='utf-8') as f:
+            toc_content = f.read()
+
+        try:
+            toc_root = etree.fromstring(toc_content.encode('utf-8'),
+                                        parser=etree.XMLParser(recover=True))
+            # Find <ul> anywhere in the document
+            ul = None
+            for el in toc_root.iter(f'{{{NS}}}ul'):
+                ul = el
+                break
+            if ul is None:
+                for el in toc_root.iter('ul'):
+                    ul = el
+                    break
+            if ul is None:
+                return jsonify({'ok': False, 'error': 'No <ul> found in TOC file'}), 400
+
+            # Clear existing <li> children
+            for li in list(ul):
+                ul.remove(li)
+
+            # Insert new <li> elements
+            for i, line in enumerate(li_lines):
+                li_el = etree.fromstring(
+                    f'<li xmlns="http://www.w3.org/1999/xhtml">{line[4:-5]}</li>'
+                )
+                if i > 0:
+                    # Add a newline and 4 spaces of indentation
+                    # We apply this to the 'tail' of the PREVIOUS element
+                    ul[-1].tail = "\n    "
+                ul.append(li_el)
+            li_el.tail = "\n"
+
+            updated = etree.tostring(toc_root, encoding='unicode', pretty_print=True)
+            # Ensure XML declaration uses single quotes to match XHTML convention
+            if not updated.startswith('<?xml'):
+                updated = "<?xml version='1.0' encoding='UTF-8'?>\n" + updated
+
+        except Exception as e:
+            return jsonify({'ok': False, 'error': f'Failed to parse TOC file: {e}'}), 400
+
+        with open(toc_path, 'w', encoding='utf-8') as f:
+            f.write(updated)
+
+        return jsonify({'ok': True, 'entries': len(li_lines)})
+
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
 
@@ -335,16 +592,34 @@ def build_epub(project_id, profile):
         raise ValueError("Profile must be 'digital' or 'print'")
     
     is_print = profile == 'print'
+    is_digital = profile == 'digital'
     
     # Load config & metadata
     meta = load_meta(project_id)
     build_config = load_build_config(project_id)
     prof = build_config.get(profile, {})
+
+    # Load footnotes_map if available
+    fn_map_path = os.path.join(PROJECTS_DIR, project_id, 'footnotes_map.json')
+    fn_map      = {}
+    if os.path.exists(fn_map_path):
+        with open(fn_map_path, encoding='utf-8') as f:
+            fn_map = json.load(f)
+
+    # Load build patterns from build.json
+    build_patterns = _load_build_config_json()
+    fn_patterns    = build_patterns.get('footnotes', {})
+    has_footnotes  = bool(fn_map.get('footnotes')) and bool(fn_map.get('footnotes_injected'))
+
+    # Collected digital footnote entries across all chapters
+    all_fn_entries = []
     
     title    = meta.get('title', 'Untitled')
     author   = meta.get('author', 'Unknown')
     language = meta.get('language', 'ca')
     cover_img = meta.get('cover_image')
+    if (not cover_img) and is_digital:
+        raise ValueError('Digital profile. No cover image set for this project. Please assign a cover image in the Build panel before building.')
     
     # Prepare manifest & spine tracking
     manifest_items = []
@@ -358,6 +633,7 @@ def build_epub(project_id, profile):
     book_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
     
+    print('before Collect all XHTML that will be in the build')
     # ── Collect all XHTML that will be in the build ────────────────────────────
     all_xhtml_for_validation = {}  # {filename: content}
     
@@ -367,67 +643,129 @@ def build_epub(project_id, profile):
         xhtml = read_xhtml_file(project_id, xhtml_file)
         if not xhtml:
             raise ValueError(f"XHTML not found: {xhtml_file}")
-        filled = fill_template(xhtml, meta, cover_img)
+        filled = fill_template(xhtml, meta)
         all_xhtml_for_validation[xhtml_file] = filled
         return xhtml_file, filled
     
-    def add_xhtml_to_spine(xhtml_file, content, display_name):
+    def add_xhtml_to_spine(xhtml_file, content, display_name, include_in_nav=True):
         """Add XHTML to spine and manifest."""
         iid = next_id()
         manifest_items.append({'id': iid, 'href': f'text/{xhtml_file}',
                                 'media_type': 'application/xhtml+xml', 'properties': None})
         spine_items.append(iid)
         files_to_write[f'text/{xhtml_file}'] = content
-        nav_entries.append((xhtml_file, display_name))
+        if include_in_nav:
+            nav_entries.append((xhtml_file, display_name))
         return iid
     
+    # ── Blank page helper ─────────────────────────────────────────────────────
+    def _blank_xhtml(n):
+        """Return list of (filename, content) for n blank XHTML pages."""
+        pages = []
+        content = (
+            "<?xml version='1.0' encoding='utf-8'?>\n"
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\" "
+            "xmlns:epub=\"http://www.idpf.org/2007/ops\" xml:lang=\"ca\">\n"
+            "<head><title> </title></head>\n"
+            "<body class=\"blankPage\"><p> </p></body>\n"
+            "</html>"
+        )
+        for i in range(n):
+            uid   = next_id()
+            fname = f"blank_{uid}.xhtml"
+            pages.append((fname, content))
+        return pages
+
+    def inject_blanks(count):
+        for fname, content in _blank_xhtml(count):
+            iid = next_id()
+            manifest_items.append({'id': iid, 'href': f'text/{fname}',
+                                   'media_type': 'application/xhtml+xml', 'properties': None})
+            spine_items.append(iid)
+            files_to_write[f'text/{fname}'] = content
+
+    # ── Blank pages: before front matter ────────────────────────────────────
+    if is_print:
+        n = prof.get('blanks_before_front', 0)
+        if n: inject_blanks(n)
+
+    
+    print('before add front matter')
     # Add front matter
     front_matter = prof.get('front_matter', [])
     for fm in front_matter:
         fid = fm.get('filename') or fm.get('id')
         if fid:
             fname, content = add_xhtml_from_project('front', fid.replace('.xhtml', ''), fid)
-            add_xhtml_to_spine(fname, content, fm.get('label', fid))
+            add_xhtml_to_spine(fname, content, fm.get('label', fid),
+                               include_in_nav=True if is_print else fm.get('nav', False))
     
+    # ── Blank pages: after front matter ─────────────────────────────────────
+    if is_print:
+        n = prof.get('blanks_after_front', 0)
+        if n: inject_blanks(n)
+
+    print('before add Chapters')
     # Add chapters
     chapters = prof.get('chapters', [])
     for ch in chapters:
         fname, content = add_xhtml_from_project('chapter', ch['filename'].replace('.xhtml', ''), ch['filename'])
-        add_xhtml_to_spine(fname, content, ch.get('name', fname))
+        # Transform fn-marker spans if footnotes are injected
+        if has_footnotes and fn_patterns:
+            content, entries = _transform_footnote_markers(content, fn_map, fname, profile, fn_patterns)
+            all_fn_entries.extend(entries)
+            all_xhtml_for_validation[fname] = content  # keep in sync with files_to_write
+        add_xhtml_to_spine(fname, content, ch.get('name', fname),
+                           include_in_nav=True if is_print else ch.get('nav', True))
     
-    # Add footnotes if any
-    footnotes = meta.get('footnotes', {})
-    if footnotes:
-        # Validate footnotes.css exists in project
-        fn_css_path = os.path.join(PROJECTS_DIR, project_id, 'styles', 'footnotes.css')
-        if not os.path.exists(fn_css_path):
-            raise ValueError(
-                f"Footnotes exist but footnotes.css not found in project.\n"
-                f"Expected at: {fn_css_path}"
-            )
-        all_xhtml_for_validation['footnotes.xhtml'] = (
-            '<?xml version="1.0"?>'
-            '<html xmlns="http://www.w3.org/1999/xhtml">'
-            '<head><link rel="stylesheet" href="../styles/footnotes.css"/></head>'
-            '<body></body></html>'
-        )
-        fn_items = '\n'.join(f'      <li id="fn{n}">{_esc(text)}</li>' for n, text in footnotes.items())
-        fn_xhtml = (
-            '<?xml version="1.0" encoding="UTF-8"?>\n'
-            '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
-            '  <head>\n'
-            '    <link rel="stylesheet" href="../styles/footnotes.css" type="text/css"/>\n'
-            '    <title>Notes</title>\n'
-            '    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n'
-            '  </head>\n'
-            '  <body>\n'
-            '    <p class="notesTitle">Notes</p>\n'
-            '    <ol>\n'
-            + fn_items +
-            '    </ol>\n'
-            '  </body>\n'
-            '</html>'
-        )
+    # ── OLD footnotes.json path — commented out, superseded by footnotes_map.json ──
+    # footnotes = meta.get('footnotes', {})
+    # if footnotes:
+    #     fn_css_path = os.path.join(PROJECTS_DIR, project_id, 'styles', 'footnotes.css')
+    #     if not os.path.exists(fn_css_path):
+    #         raise ValueError(
+    #             f"Footnotes exist but footnotes.css not found in project.\n"
+    #             f"Expected at: {fn_css_path}"
+    #         )
+    #     all_xhtml_for_validation['footnotes.xhtml'] = (
+    #         '<?xml version="1.0"?>'
+    #         '<html xmlns="http://www.w3.org/1999/xhtml">'
+    #         '<head><link rel="stylesheet" href="../styles/footnotes.css"/></head>'
+    #         '<body></body></html>'
+    #     )
+    #     fn_items = '\n'.join(f'      <li id="fn{n}">{_esc(text)}</li>' for n, text in footnotes.items())
+    #     fn_xhtml = (
+    #         '<?xml version="1.0" encoding="UTF-8"?>\n'
+    #         '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">\n'
+    #         '  <head>\n'
+    #         '    <link rel="stylesheet" href="../styles/footnotes.css" type="text/css"/>\n'
+    #         '    <title>Notes</title>\n'
+    #         '    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>\n'
+    #         '  </head>\n'
+    #         '  <body>\n'
+    #         '    <p class="notesTitle">Notes</p>\n'
+    #         '    <ol>\n'
+    #         + fn_items +
+    #         '    </ol>\n'
+    #         '  </body>\n'
+    #         '</html>'
+    #     )
+    #     all_xhtml_for_validation['footnotes.xhtml'] = fn_xhtml
+    #     fn_iid = next_id()
+    #     manifest_items.append({'id': fn_iid, 'href': 'text/footnotes.xhtml',
+    #                             'media_type': 'application/xhtml+xml', 'properties': None})
+    #     spine_items.append(fn_iid)
+    #     files_to_write['text/footnotes.xhtml'] = fn_xhtml
+
+
+    print('after chapters loop')
+    # ── New footnotes.xhtml for digital (from footnotes_map.json) ─────────────
+    if is_digital and all_fn_entries:
+        title = meta.get('title', 'Notes')
+        try:
+            fn_xhtml = _build_footnotes_xhtml(all_fn_entries, title, fn_patterns)
+        except Exception as e:
+            raise ValueError(f"Could not build footnotes.xhtml: {e}")
         all_xhtml_for_validation['footnotes.xhtml'] = fn_xhtml
         fn_iid = next_id()
         manifest_items.append({'id': fn_iid, 'href': 'text/footnotes.xhtml',
@@ -435,14 +773,77 @@ def build_epub(project_id, profile):
         spine_items.append(fn_iid)
         files_to_write['text/footnotes.xhtml'] = fn_xhtml
     
+    # ── Blank pages: before back matter ─────────────────────────────────────
+    if is_print:
+        n = prof.get('blanks_before_back', 0)
+        if n: inject_blanks(n)
+
     # Add back matter
     back_matter = prof.get('back_matter', [])
     for bm in back_matter:
         bid = bm.get('filename') or bm.get('id')
         if bid:
             fname, content = add_xhtml_from_project('back', bid.replace('.xhtml', ''), bid)
-            add_xhtml_to_spine(fname, content, bm.get('label', bid))
+            add_xhtml_to_spine(fname, content, bm.get('label', bid),
+                               include_in_nav=True if is_print else bm.get('nav', False))
+
+    # ── Blank pages: after back matter ──────────────────────────────────────
+    if is_print:
+        n = prof.get('blanks_after_back', 0)
+        if n: inject_blanks(n)
     
+    # ── Inject override CSS for digital builds ───────────────────────────────
+    if not is_print:
+        try:
+            with open(GLOBAL_JSON) as _f:
+                _global = json.load(_f)
+            override_css = _global.get('override_css', {}).get('digital', 'digital-overrides.css')
+        except Exception:
+            override_css = 'digital-overrides.css'
+        override_css_path = os.path.join(PROJECTS_DIR, project_id, 'styles', override_css)
+
+        print("BEFORE INDEX AND RFIND IN DIGITAL")
+
+        if os.path.exists(override_css_path):
+            _link_tag = f'<link rel="stylesheet" type="text/css" href="../styles/{override_css}"/>'
+            _injected = {}
+            for _fname, _xcontent in all_xhtml_for_validation.items():
+                if '<link rel="stylesheet"' in _xcontent and _link_tag not in _xcontent:
+                    # Insert after last existing <link rel="stylesheet".../>
+                    _last = _xcontent.rfind('<link rel="stylesheet"')
+                    _end  = _xcontent.index('/>', _last) + 2
+                    _xcontent = _xcontent[:_end] + '\n    ' + _link_tag + _xcontent[_end:]
+                _injected[_fname] = _xcontent
+            all_xhtml_for_validation = _injected
+            # Sync back to files_to_write
+            for _fname, _xcontent in _injected.items():
+                if f'text/{_fname}' in files_to_write:
+                    files_to_write[f'text/{_fname}'] = _xcontent
+
+    # ── Inject override CSS for print builds ─────────────────────────────────
+    else:
+        try:
+            with open(GLOBAL_JSON) as _f:
+                _global = json.load(_f)
+            override_css = _global.get('override_css', {}).get('print', 'print-overrides.css')
+        except Exception:
+            override_css = 'print-overrides.css'
+        override_css_path = os.path.join(PROJECTS_DIR, project_id, 'styles', override_css)
+        if os.path.exists(override_css_path):
+            _link_tag = f'<link rel="stylesheet" type="text/css" href="../styles/{override_css}" media="print"/>'
+            _injected = {}
+            for _fname, _xcontent in all_xhtml_for_validation.items():
+                if '<link rel="stylesheet"' in _xcontent and _link_tag not in _xcontent:
+                    _last = _xcontent.rfind('<link rel="stylesheet"')
+                    _end  = _xcontent.index('/>', _last) + 2
+                    _xcontent = _xcontent[:_end] + '\n    ' + _link_tag + _xcontent[_end:]
+                _injected[_fname] = _xcontent
+            all_xhtml_for_validation = _injected
+            # Sync back to files_to_write
+            for _fname, _xcontent in _injected.items():
+                if f'text/{_fname}' in files_to_write:
+                    files_to_write[f'text/{_fname}'] = _xcontent
+
     # ── Validate all XHTML and extract CSS ──────────────────────────────────────
     styles_needed = collect_and_validate_css(project_id, all_xhtml_for_validation)
     
@@ -491,21 +892,28 @@ def build_epub(project_id, profile):
         except Exception:
             pass
     
-    # ── Collect fonts from project ────────────────────────────────────────────
-    project_fonts_dir = os.path.join(PROJECTS_DIR, project_id, 'fonts')
-    if os.path.isdir(project_fonts_dir):
-        for font in os.listdir(project_fonts_dir):
-            if font.endswith(('.ttf', '.otf', '.woff', '.woff2')):
-                fonts_needed[font] = os.path.join(project_fonts_dir, font)
-    
-    # ── Font manifest entries ─────────────────────────────────────────────────
-    font_mime = {'ttf': 'application/vnd.ms-opentype', 'otf': 'application/vnd.ms-opentype',
-                 'woff': 'application/font-woff', 'woff2': 'application/font-woff2'}
-    for i, font in enumerate(sorted(fonts_needed.keys())):
-        ext = font.rsplit('.', 1)[-1].lower()
-        manifest_items.append({'id': f'font{i}', 'href': f'fonts/{font}',
-                               'media_type': font_mime.get(ext, 'application/octet-stream'),
-                               'properties': None})
+    if is_print:
+        # ── Collect fonts from project, fall back to global ──────────────────────
+        project_fonts_dir = os.path.join(PROJECTS_DIR, project_id, 'fonts')
+        if os.path.isdir(project_fonts_dir):
+            for font in os.listdir(project_fonts_dir):
+                if font.endswith(('.ttf', '.otf', '.woff', '.woff2')):
+                    fonts_needed[font] = os.path.join(project_fonts_dir, font)
+
+        # Global fonts fallback — add any not already provided by project
+        if os.path.isdir(GLOBAL_FONTS):
+            for font in os.listdir(GLOBAL_FONTS):
+                if font.endswith(('.ttf', '.otf', '.woff', '.woff2')) and font not in fonts_needed:
+                    fonts_needed[font] = os.path.join(GLOBAL_FONTS, font)
+        
+        # ── Font manifest entries ─────────────────────────────────────────────────
+        font_mime = {'ttf': 'application/vnd.ms-opentype', 'otf': 'application/vnd.ms-opentype',
+                    'woff': 'application/font-woff', 'woff2': 'application/font-woff2'}
+        for i, font in enumerate(sorted(fonts_needed.keys())):
+            ext = font.rsplit('.', 1)[-1].lower()
+            manifest_items.append({'id': f'font{i}', 'href': f'fonts/{font}',
+                                'media_type': font_mime.get(ext, 'application/octet-stream'),
+                                'properties': None})
     
     # ── Image manifest entries ────────────────────────────────────────────────
     img_mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif'}

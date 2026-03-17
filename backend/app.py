@@ -6,6 +6,8 @@ from flask_cors import CORS
 import requests as http_requests
 from routes.projects import projects_bp
 from routes.split import split_bp
+from routes.chapters import chapters_bp
+from routes.xhtml import xhtml_bp
 from routes.epub_import import epub_bp
 from routes.build import build_bp
 from routes.ignore import ignore_bp
@@ -14,6 +16,7 @@ from routes.images import images_bp
 from routes.footnotes import footnotes_bp
 from routes.hyphenate import hyphenate_bp
 from routes.fonts import fonts_bp
+from routes.pdf import pdf_bp
 
 app = Flask(__name__,
     template_folder='templates',
@@ -22,6 +25,8 @@ CORS(app, origins=["http://localhost:5000", "http://127.0.0.1:5000"])
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.register_blueprint(projects_bp)
 app.register_blueprint(split_bp)
+app.register_blueprint(chapters_bp)
+app.register_blueprint(xhtml_bp)
 app.register_blueprint(epub_bp)
 app.register_blueprint(build_bp)
 app.register_blueprint(ignore_bp)
@@ -29,6 +34,7 @@ app.register_blueprint(images_bp)
 app.register_blueprint(footnotes_bp)
 app.register_blueprint(hyphenate_bp)
 app.register_blueprint(fonts_bp)
+app.register_blueprint(pdf_bp)
 
 LT_URL = 'http://localhost:8082/v2/check'
 

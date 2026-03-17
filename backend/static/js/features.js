@@ -1,8 +1,28 @@
 'use strict';
 
+// ── Split font size ───────────────────────────────────────────────────────────
+const SPLIT_FS_KEY     = 'bp-split-fs';
+const SPLIT_FS_DEFAULT = 24;
+const SPLIT_FS_MIN = 15;
+const SPLIT_FS_MAX = 33;
+
+// ── Monaco Code mode font size ───────────────────────────────────────────────────────────
+const MONACO_FS_KEY = 'bp:fs-monaco';
+const MONACO_FS_DEFAULT = 18;
+const MONACO_FS_MIN = 10;
+const MONACO_FS_MAX = 26;
+
+// ── Preview font size ─────────────────────────────────────────────────────────
+const PV_FS_KEY     = 'bp-preview-fs';
+const PV_FS_DEFAULT = 24;
+const PV_FS_MIN = 15;
+const PV_FS_MAX = 33;
+
 // ── LanguageTool ─────────────────────────────────────────────────────────────
+let ltCheckText = '';  // Store text used for grammar check to ensure consistent offsets
+
 function buildTextMap() {
-  const editor = document.getElementById('editor-content');
+  const editor = document.getElementById('preview-pane-body');  // CHANGED: preview pane instead
   let text = ''; const nodes = [];
   function walk(node) {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -20,15 +40,21 @@ function buildTextMap() {
   return { text: text.replace(/\n+$/,''), nodes };
 }
 
-document.getElementById('btn-lt-check').addEventListener('click', checkGrammar);
 
 async function checkGrammar() {
-  if (checking || editorMode !== 'text') return;
+  if (checking) return;
+  
   if (fileIsHyphenated) {
     if (!confirm('This file contains soft hyphens.\n\nGrammar check may produce false positives and miss real errors on hyphenated words.\n\nProceed anyway?')) return;
   }
+  
+  // CHANGED: Use buildTextMap consistently with applyLtMarks
+  // This ensures offsets match exactly
   const { text } = buildTextMap();
+  ltCheckText = text;
+  
   if (!text.trim()) return;
+  
   checking = true;
   const btn = document.getElementById('btn-lt-check');
   btn.innerHTML = '<span class="spinner"></span> Checking'; btn.disabled = true;
@@ -37,15 +63,22 @@ async function checkGrammar() {
     const data = await apiFetch('POST', '/check', { text, language: document.getElementById('lt-lang').value, project_id: currentProject?.id || '' });
     if (data.error) { setEditorStatus('⚠ ' + data.error, 'err'); return; }
     ltMatches = Array.isArray(data) ? data : [];
+    
+    // Store surface text using the SAME text extraction (buildTextMap)
+    // This ensures offsets match exactly for the ignore popup
+    ltMatches.forEach(m => {
+      m._surface = text.slice(m.offset, m.offset + m.length);
+    });
+    
     applyLtMarks(ltMatches);
     const n = ltMatches.length;
-    setEditorStatus(n===0 ? '✓ No issues found' : `${n} issue${n!==1?'s':''} — click to fix`, n===0?'ok':'warn');
+    setEditorStatus(n===0 ? '✓ No issues found' : `${n} issue${n!==1?'s':''} found`, n===0?'ok':'warn');
   } catch(e) { setEditorStatus('⚠ Server error', 'err'); }
   finally { checking=false; btn.textContent='Check grammar'; btn.disabled=false; }
 }
 
 function applyLtMarks(matches) {
-  const editor = document.getElementById('editor-content');
+  const editor = document.getElementById('preview-pane-body');
   editor.querySelectorAll('.lt-err').forEach(span => {
     while (span.firstChild) span.parentNode.insertBefore(span.firstChild, span);
     span.remove();
@@ -54,12 +87,12 @@ function applyLtMarks(matches) {
   if (!matches.length) return;
   [...matches].sort((a,b)=>a.offset-b.offset).forEach((m,idx) => {
     const s=m.offset, e=s+m.length;
-    // Store the surface text on the match for the ignore button
-    const { text: fullText } = buildTextMap();
-    m._surface = fullText.slice(s, e);
+    // REMOVED: Don't recalculate _surface here - it was already set in checkGrammar()
+    // from ltCheckText (innerText) to ensure consistent offsets
+    
     const cat=(m.rule?.category?.id||'').toUpperCase(), it=m.rule?.issueType||'';
     const cls=(cat==='TYPOS'||cat==='SPELLING'||it==='misspelling')?'spell':(cat==='STYLE'||cat==='REDUNDANCY')?'style':'grammar';
-    const { nodes } = buildTextMap();
+    const { nodes } = buildTextMap();  // Use buildTextMap only for DOM node positions
     for (const tn of nodes) {
       if (tn.end<=s||tn.start>=e) continue;
       const os=Math.max(s,tn.start)-tn.start, oe=Math.min(e,tn.end)-tn.start;
@@ -75,14 +108,6 @@ function applyLtMarks(matches) {
   });
 }
 
-document.getElementById('editor-content').addEventListener('click', e => {
-  const span = e.target.closest('.lt-err');
-  if (!span) { hideLtPopover(); return; }
-  e.stopPropagation();
-  const match = ltMatches[parseInt(span.dataset.idx)];
-  if (match) showLtPopover(span, match);
-});
-
 function showLtPopover(span, match) {
   document.querySelectorAll('.lt-err.active').forEach(s => s.classList.remove('active'));
   span.classList.add('active');
@@ -96,7 +121,6 @@ function showLtPopover(span, match) {
     btn.addEventListener('click', ex => { ex.stopPropagation(); applyLtFix(match,r.value); hideLtPopover(); });
     box.appendChild(btn);
   });
-  // Show ignore button — store the matched surface text on the button
   const ignBtn = document.getElementById('pop-ignore-btn');
   const surface = match._surface || '';
   ignBtn.classList.toggle('hidden', !surface);
@@ -116,73 +140,123 @@ function hideLtPopover() {
 }
 
 function applyLtFix(match, replacement) {
-  const editor=document.getElementById('editor-content');
-  const span=editor.querySelector(`.lt-err[data-idx="${ltMatches.indexOf(match)}"]`);
-  if (span) { const tn=document.createTextNode(replacement); span.parentNode.replaceChild(tn,span); editor.normalize(); }
-  const delta=replacement.length-match.length, e=match.offset+match.length;
-  ltMatches=ltMatches.filter(m=>m!==match).map(m=>m.offset>=e?{...m,offset:m.offset+delta}:m);
-  applyLtMarks(ltMatches); isDirty=true;
-  const n=ltMatches.length;
-  setEditorStatus(n===0?'✓ All issues resolved — remember to save':`${n} issue${n!==1?'s':''} remaining`, n===0?'ok':'warn');
+  if (!monacoEditor) return;
+
+  const xhtml    = monacoEditor.getValue();
+  const original = ltCheckText.slice(match.offset, match.offset + match.length);
+
+  // Walk XHTML skipping tags to find the xhtml index at plain-text offset
+  let plainPos = 0, xhtmlPos = 0, inTag = false, matchStart = -1;
+  while (xhtmlPos < xhtml.length) {
+    if (plainPos === match.offset && !inTag) { matchStart = xhtmlPos; break; }
+    const ch = xhtml[xhtmlPos];
+    if (ch === '<') { inTag = true; xhtmlPos++; continue; }
+    if (ch === '>') { inTag = false; xhtmlPos++; continue; }
+    if (!inTag) plainPos++;
+    xhtmlPos++;
+  }
+
+  const searchFrom = matchStart !== -1 ? matchStart : 0;
+  const idx = xhtml.indexOf(original, searchFrom);
+  if (idx !== -1) {
+    const end = idx + original.length + (replacement === '' && xhtml[idx + original.length] === ' ' ? 1 : 0);
+    const model = monacoEditor.getModel();
+    const startPos = model.getPositionAt(idx);
+    const endPos   = model.getPositionAt(end);
+    monacoLoading = true;
+    monacoEditor.executeEdits('lt-fix', [{
+      range: new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
+      text: replacement
+    }]);
+    monacoLoading = false;
+    ltCheckText = ltCheckText.slice(0, match.offset) + replacement + ltCheckText.slice(match.offset + match.length);
+    refreshPreview().then(() => applyLtMarks(ltMatches));
+  }
+
+  // Update offset tracking
+  const delta = replacement.length - match.length, e = match.offset + match.length;
+  ltMatches = ltMatches.filter(m => m !== match).map(m => m.offset >= e ? {...m, offset: m.offset + delta} : m);
+
+  isDirty = true;
+  const n = ltMatches.length;
+  setEditorStatus(n===0 ? '✓ All issues resolved — remember to save' : `${n} issue${n!==1?'s':''} remaining`, n===0?'ok':'warn');
 }
 
-document.addEventListener('click', e => {
+// CHANGED: Listen on preview pane instead of editor-content
+function onPreviewLtClick(e) {
+  const span = e.target.closest('.lt-err');
+  if (!span) { hideLtPopover(); return; }
+  e.stopPropagation();
+  const match = ltMatches[parseInt(span.dataset.idx)];
+  if (match) showLtPopover(span, match);
+}
+
+function onDocumentClickHidePopover(e) {
   if (!document.getElementById('lt-popover').contains(e.target)) hideLtPopover();
-});
+}
 
 // ── Font size control ────────────────────────────────────────────────────────
-const FS_KEY = 'bp:fs-content';
-const MONACO_FS_KEY = 'bp:fs-monaco';
-const MONACO_FS_DEFAULT = 13;
-
 function applyMonacoFontSize(px) {
   localStorage.setItem(MONACO_FS_KEY, px);
   if (monacoEditor) monacoEditor.updateOptions({ fontSize: px });
 }
 
-function applyFontSize(size) {
-  document.documentElement.style.setProperty('--fs-content', size);
-  document.querySelectorAll('.fs-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.size === size)
-  );
-  localStorage.setItem(FS_KEY, size);
-}
-
-document.querySelectorAll('.fs-btn').forEach(btn =>
-  btn.addEventListener('click', () => applyFontSize(btn.dataset.size))
-);
-
 // ── Monaco font size ±  ───────────────────────────────────────────────────────
 function updateMonacoFsLabel(px) {
   document.getElementById('monaco-fs-label').textContent = px + 'px';
 }
-document.getElementById('btn-monaco-fs-up').addEventListener('click', () => {
-  const px = Math.min(24, (parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT) + 1);
+function monacoFsUp() {
+  const px = Math.min(MONACO_FS_MAX, (parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT) + 1);
   applyMonacoFontSize(px); updateMonacoFsLabel(px);
-});
-document.getElementById('btn-monaco-fs-down').addEventListener('click', () => {
-  const px = Math.max(10, (parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT) - 1);
+}
+function monacoFsDown() {
+  const px = Math.max(MONACO_FS_MIN, (parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT) - 1);
   applyMonacoFontSize(px); updateMonacoFsLabel(px);
-});
+}
 updateMonacoFsLabel(parseInt(localStorage.getItem(MONACO_FS_KEY)) || MONACO_FS_DEFAULT);
 
 // ── Preview font size ─────────────────────────────────────────────────────────
-const PV_FS_KEY     = 'bp-preview-fs';
-const PV_FS_DEFAULT = '0.95rem';
-
-function applyPreviewFontSize(size) {
-  document.getElementById('preview-pane-body').style.fontSize = size;
-  document.querySelectorAll('.pv-fs-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.pvsize === size)
-  );
-  localStorage.setItem(PV_FS_KEY, size);
+function updatePvFsLabel(px) {
+  document.getElementById('pv-fs-label').textContent = px + 'px';
 }
+function applyPreviewFontSize(px) {
+  document.getElementById('preview-pane-body').style.fontSize = px + 'px';
+  updatePvFsLabel(px);
+  localStorage.setItem(PV_FS_KEY, px);
+}
+function pvFsUp() {
+  const px = Math.min(PV_FS_MAX, (parseInt(localStorage.getItem(PV_FS_KEY)) || PV_FS_DEFAULT) + 1);
+  applyPreviewFontSize(px);
+}
+function pvFsDown() {
+  const px = Math.max(PV_FS_MIN, (parseInt(localStorage.getItem(PV_FS_KEY)) || PV_FS_DEFAULT) - 1);
+  applyPreviewFontSize(px);
+}
+document.getElementById('btn-pv-fs-up').addEventListener('click', pvFsUp);
+document.getElementById('btn-pv-fs-down').addEventListener('click', pvFsDown);
+applyPreviewFontSize(parseInt(localStorage.getItem(PV_FS_KEY)) || PV_FS_DEFAULT);
 
-document.querySelectorAll('.pv-fs-btn').forEach(btn =>
-  btn.addEventListener('click', () => applyPreviewFontSize(btn.dataset.pvsize))
-);
+// ── Split font size ───────────────────────────────────────────────────────────
 
-applyPreviewFontSize(localStorage.getItem(PV_FS_KEY) || PV_FS_DEFAULT);
+function updateSplitFsLabel(px) {
+  document.getElementById('split-fs-label').textContent = px + 'px';
+}
+function applySplitFontSize(px) {
+  document.getElementById('split-text-area').style.fontSize = px + 'px';
+  updateSplitFsLabel(px);
+  localStorage.setItem(SPLIT_FS_KEY, px);
+}
+function splitFsUp() {
+  const px = Math.min(SPLIT_FS_MAX, (parseInt(localStorage.getItem(SPLIT_FS_KEY)) || SPLIT_FS_DEFAULT) + 1);
+  applySplitFontSize(px);
+}
+function splitFsDown() {
+  const px = Math.max(SPLIT_FS_MIN, (parseInt(localStorage.getItem(SPLIT_FS_KEY)) || SPLIT_FS_DEFAULT) - 1);
+  applySplitFontSize(px);
+}
+document.getElementById('btn-split-fs-up').addEventListener('click', splitFsUp);
+document.getElementById('btn-split-fs-down').addEventListener('click', splitFsDown);
+applySplitFontSize(parseInt(localStorage.getItem(SPLIT_FS_KEY)) || SPLIT_FS_DEFAULT);
 
 
 // ── Footnote manager ──────────────────────────────────────────────────────────
@@ -453,13 +527,15 @@ async function saveBuildConfig() {
 }
 
 async function resetBuildConfig() {
-  if (!confirm('Reset front and back matter for this profile to defaults? Chapters are kept. Files on disk are not deleted.')) return;
-  const defaults = BUILD_DEFAULTS[buildProfile];
-  buildConfig[buildProfile].front_matter = JSON.parse(JSON.stringify(defaults.front_matter));
-  buildConfig[buildProfile].back_matter  = JSON.parse(JSON.stringify(defaults.back_matter));
-  await saveBuildConfig();
-  renderBuildPanel();
-  showStatus('build-action-status', '↺ Reset to chapters only', 'info');
+  if (!currentProject) return;
+  if (!confirm(`Reset ${buildProfile} front and back matter to global template defaults?\n\nExisting matter files will be replaced. Chapters are kept.`)) return;
+  try {
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/reset_matter`, { profile: buildProfile });
+    buildConfig[buildProfile].front_matter = data.build_config.front_matter;
+    buildConfig[buildProfile].back_matter  = data.build_config.back_matter;
+    renderBuildPanel();
+    showStatus('build-action-status', `↺ ${buildProfile} matter reset to defaults`, 'ok');
+  } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
 }
 
 async function buildEpub() {
@@ -500,6 +576,7 @@ async function hyphenateChapters() {
     const n   = data.processed.length;
     const err = data.errors.length;
     if (err) {
+      console.error("Hyphenation errors:", data.errors);   
       showStatus('build-action-status',
         `⚠ ${n} file${n!==1?'s':''} hyphenated, ${err} error${err!==1?'s':''}`, 'err');
     } else {
@@ -592,20 +669,15 @@ function updateFormatButtons() {
     document.queryCommandState('italic'));
 }
 
-document.getElementById('btn-bold').addEventListener('click',   () => applyFormat('b'));
-document.getElementById('btn-italic').addEventListener('click', () => applyFormat('i'));
 
 // Update active state on cursor move / selection change
-document.getElementById('editor-content').addEventListener('keyup',   updateFormatButtons);
-document.getElementById('editor-content').addEventListener('mouseup', updateFormatButtons);
-document.getElementById('editor-content').addEventListener('selectionchange', updateFormatButtons);
 
 // Ctrl+B / Ctrl+I — work in both modes
-document.addEventListener('keydown', e => {
+function onDocumentFormatKeydown(e) {
   if (!(e.ctrlKey || e.metaKey)) return;
   if (e.key === 'b') { e.preventDefault(); applyFormat('b'); }
   if (e.key === 'i') { e.preventDefault(); applyFormat('i'); }
-});
+}
 
 // ── Ignore words ─────────────────────────────────────────────────────────────
 let ignoreWords = [];
@@ -673,5 +745,4 @@ function toggleIgnorePanel() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-applyFontSize(localStorage.getItem(FS_KEY) || '1rem');
 loadProjects();

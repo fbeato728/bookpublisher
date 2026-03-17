@@ -1,4 +1,5 @@
-@font-face {
+@charset "utf-8";
+/* @font-face {
   src: url(../fonts/Adobe_Garamond_Pro_Italic.ttf);
   font-family: "Adobe Garamond Pro";
   font-weight: normal;
@@ -18,7 +19,7 @@
   font-weight: 600;
   font-style: normal;
   font-stretch: normal;
-}
+} */
 
 /* ── Base reset ─────────────────────────────────────────────────────────────── */
 /* All font/text properties below inherit from body — classes only override what differs */
@@ -30,7 +31,7 @@ body {
   letter-spacing: 0;
   text-transform: none;
   text-shadow: none;
-  hyphens: none;
+/*  hyphens: none;*/
   -webkit-hyphens: none;
   -webkit-text-stroke-color: initial;
   -webkit-text-stroke-width: initial;
@@ -42,13 +43,29 @@ a:link   { color: black; }
 
 /* ── Base elements ───────────────────────────────────────────────────────────── */
 h1 {
-  margin: 0 0 6.5% 0;
-  padding: 0;
+  padding-left: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-right: 0;
+  margin-bottom: 6.5%;
+  padding-bottom: 0;
+  font-style: normal;
   font-weight: 700;
-  font-size: 133.333%;
+  font-stretch: normal;
+  font-size: 1.33em;
+  font-family: "Adobe Garamond Pro", serif;
+  color: #000;
+  letter-spacing: 0;
+  font-variant: normal;
+  text-transform: none;
   text-align: center;
   text-indent: 0;
   line-height: 1.2em;
+  hyphens: none;
+  -webkit-hyphens: none;
+  -webkit-text-stroke-color: initial;
+  -webkit-text-stroke-width: initial;
+  text-shadow: none;
 }
 p   { margin: 0; }
 sub { vertical-align: -10%; font-size: 67%; }
@@ -136,7 +153,7 @@ sup { vertical-align: 33%;  font-size: 67%; }
   padding: 0;
   margin: 0;
   font-weight: 700;
-  text-align: left;
+  text-align: center;
   text-indent: 0;
   line-height: 1.2em;
 }
@@ -167,16 +184,60 @@ sup { vertical-align: 33%;  font-size: 67%; }
 }
 .subtitles { margin-bottom: 5%; }
 
+
+.chapterNumber {
+  padding-left: 0;
+  margin-top: 0;
+  padding-top: 0%;
+  padding-right: 0;
+  margin-bottom: 0%;
+  padding-bottom: 0;
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: normal;
+  font-size: 1.5em;
+  font-family: "Adobe Garamond Pro", serif;
+  color: #000;
+  letter-spacing: 0;
+  font-variant: normal;
+  text-transform: none;
+  text-align: center;
+  text-indent: 0;
+  line-height: 1.2em;
+  hyphens: none;
+  -webkit-hyphens: none;
+  -webkit-text-stroke-color: initial;
+  -webkit-text-stroke-width: initial;
+  text-shadow: none;
+}
+
 /* ── Body text classes ───────────────────────────────────────────────────────── */
 .normalText {
-  padding: 0;
-  margin: 0;
-  font-size: 100%;
+  padding-left: 0;
+  margin-top: 0%;
+  padding-top: 0;
+  padding-right: 0;
+  margin-bottom: 0%;
+  padding-bottom: 0%;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1em;
+  font-family: "Adobe Garamond Pro", serif;
+  color: #000;
+  letter-spacing: 0;
+  font-variant: normal;
+  text-transform: none;
+  white-space: normal;
   text-align: justify;
-  text-indent: 6%;
-  line-height: 1.4em;
-  hyphens: auto;
-  -webkit-hyphens: auto;
+  widows: 2;
+  orphans: 2;
+  text-indent: 1.3em;
+  line-height: 1.3em;
+  /*hyphens: auto;*/
+  -webkit-hyphens: none;
+  -webkit-text-stroke-color: initial;
+  -webkit-text-stroke-width: initial;
+  text-shadow: none;
 }
 .normalText_no_indent {
   padding: 0;
@@ -240,16 +301,52 @@ sup { vertical-align: 33%;  font-size: 67%; }
   text-indent: 0;
   line-height: 1.2em;
 }
+
 .poem {
-  padding: 0;
-  margin: 0;
-  font-size: 90%;
-  text-align: justify;
-  text-indent: 0;
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: normal;
+  font-size: 1em;
+  font-family: "Adobe Garamond Pro", serif;
+  color: #000;
+  letter-spacing: 0;
+  font-variant: normal;
+  text-transform: none;
+  white-space: normal;
+  text-align: center;
   line-height: 1.1em;
+  hyphens: none;
+  -webkit-hyphens: none;
+  -webkit-text-stroke-color: initial;
+  -webkit-text-stroke-width: initial;
+  text-shadow: none;
 }
 
 /* ── Letter / epistolary blocks ──────────────────────────────────────────────── */
+
+/* .poemBlock {
+  margin-top: 1em;
+  margin-bottom: 1em;
+} */
+
+.poemBlock {
+  font-family: "Adobe Garamond Pro", serif;
+  font-size: 0.95em;
+  text-align: center;
+  line-height: 1.1;
+  hyphens: none;
+
+  widows: 2;
+  orphans: 2;
+
+  margin: 1em 0;
+}
+
+.poem-break {
+  display: block;
+  margin-top: 0.8em; /* controls the visual pause */
+}
+
 .letterDiv      { padding: 0 5%; margin: 2% 0 0 0; }
 .letterDivBlock { padding: 0;   margin: 3% 0; }
 .letterEntry {
@@ -402,7 +499,7 @@ sup { vertical-align: 33%;  font-size: 67%; }
 .orientation-opposed .underline-strikethrough { text-decoration: overline line-through; }
 
 /* ── Images ──────────────────────────────────────────────────────────────────── */
-.divImage     { padding-top: 10%; }
+/* .divImage     { padding-top: 10%; } */
 img.twofive   { width: 25%;  height: 25%; }
 img.thirty    { width: 30%;  height: 30%; }
 img.threefive { width: 35%;  height: 35%; }
@@ -454,3 +551,10 @@ img.full      { width: 100%; page-break-after: always; }
   margin: 5% auto 2% auto;
   width: 90%;
 }
+
+
+div.footnote {
+  margin-bottom: 1em;
+  }
+
+p.fnparagraph { font-size: 0.9em;}

@@ -1,8 +1,56 @@
-/* ── TOC title ───────────────────────────────────────────────────────────────── */
+@font-face {
+  src: url(../fonts/Adobe_Garamond_Pro_Italic.ttf);
+  font-family: "Adobe Garamond Pro";
+  font-weight: normal;
+  font-style: italic;
+  font-stretch: normal;
+}
+@font-face {
+  src: url(../fonts/Adobe_Garamond_Pro_Regular.ttf);
+  font-family: "Adobe Garamond Pro";
+  font-weight: normal;
+  font-style: normal;
+  font-stretch: normal;
+}
+@font-face {
+  src: url(../fonts/Adobe_Garamond_Pro_Semibold.otf);
+  font-family: "Adobe Garamond Pro";
+  font-weight: 600;
+  font-style: normal;
+  font-stretch: normal;
+}
+ul.leaders {
+  max-width: 40em;
+  padding: 0;
+  list-style: none;
+  font-family: "Adobe Garamond Pro", serif;
+}
+ul.leaders li {
+  margin-bottom: 3%;
+}
+ul.leaders a.tocitem {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+ul.leaders a.tocitem::after {
+  content: leader(" .");
+}
+.taula {
+  width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+}
 .chapterNumber {
-  padding: 20% 0 5% 0;
+  padding-left: 0;
+  margin-top: 0;
+  padding-top: 15%;
+  padding-right: 0;
+  margin-bottom: 2%;
+  padding-bottom: 0;
   font-style: normal;
   font-weight: 700;
+  font-stretch: normal;
   font-size: 110%;
   font-family: "Adobe Garamond Pro", serif;
   color: #000;
@@ -14,107 +62,7 @@
   line-height: 1.2em;
   hyphens: none;
   -webkit-hyphens: none;
-}
-
-/* ── Part headings ───────────────────────────────────────────────────────────── */
-.part_taula {
-  padding: 5% 0 3% 0;
-  font-style: normal;
-  font-weight: 700;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-  color: #000;
-  letter-spacing: 0;
-  font-variant: normal;
-  text-align: left;
-  text-indent: 0;
-  line-height: 1.2em;
-}
-.part_title {
-  padding-bottom: 2%;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-  text-align: center;
-}
-
-/* ── Entry row (grid layout) ─────────────────────────────────────────────────── */
-.entry {
-  display: grid;
-  grid-template-columns: auto max-content;
-  grid-template-areas: "chapter page";
-  align-items: end;
-  gap: 0 0.25rem;
-  padding-bottom: 1.5%;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-}
-
-/* ── Chapter column variants ─────────────────────────────────────────────────── */
-.mchapter,
-.chapter {
-  grid-area: chapter;
-  position: relative;
-  overflow: hidden;
-  padding-right: 5%;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-}
-.chapter2 {
-  grid-area: chapter;
-  position: relative;
-  overflow: hidden;
-  padding-right: 5%;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-  text-indent: 2.4%;
-}
-.ichapter {
-  grid-area: chapter;
-  position: relative;
-  overflow: hidden;
-  padding-right: 5%;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-  text-indent: 4%;
-}
-.ichapter2 {
-  grid-area: chapter;
-  position: relative;
-  overflow: hidden;
-  padding-right: 5%;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-  text-indent: 6%;
-}
-
-/* dot leader placeholder — add content value here when needed */
-.chapter::after {
-  position: absolute;
-  padding-left: 0.25ch;
-  text-align: right;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
-}
-
-/* ── Page number column ──────────────────────────────────────────────────────── */
-.page {
-  grid-area: page;
-  font-style: normal;
-  font-weight: 400;
-  font-size: 100%;
-  font-family: "Adobe Garamond Pro", serif;
+  -webkit-text-stroke-color: initial;
+  -webkit-text-stroke-width: initial;
+  text-shadow: none;
 }

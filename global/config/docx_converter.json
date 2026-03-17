@@ -15,16 +15,15 @@
     },
     "closing_tags": "\n</body>\n</html>"
   },
-  
   "paths": {
     "styles_relative": "../styles/",
     "images_relative": "../images/"
   },
-  
   "heading_map": {
     "Heading 1": {
       "tag": "h1",
-      "class": "heading1"
+      "class": "chapterNumber",
+      "wrapper": "<div class=\"chapterNumberBlock\">"
     },
     "Heading 2": {
       "tag": "h2",
@@ -35,27 +34,28 @@
       "class": "heading3"
     }
   },
-  
   "paragraph": {
     "default_class": "normalText",
     "skip_empty": true
   },
-  
   "images": {
     "filename_prefix": "img_",
     "generate_uuid": true,
     "uuid_length": 8,
-    "supported_formats": ["PNG", "JPEG", "GIF", "WEBP"],
+    "supported_formats": [
+      "PNG",
+      "JPEG",
+      "GIF",
+      "WEBP"
+    ],
     "fallback_format": "PNG",
     "alt_text_default": "image"
   },
-  
   "escaping": {
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;"
   },
-  
   "messages": {
     "errors": {
       "image_processing": "Warning: Could not process image: {error}"

@@ -1,0 +1,7 @@
+{
+  "override_css": {
+    "digital": "digital-overrides.css",
+    "print": "print-overrides.css"
+  },
+  "prince_cli": "/srv/prince_pdf_app/prince_pdf/cli.py"
+}

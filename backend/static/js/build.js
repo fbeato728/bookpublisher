@@ -2,31 +2,15 @@
 
 // ── Build panel ───────────────────────────────────────────────────────────────
 let buildProfile  = 'digital';
-
-const BUILD_DEFAULTS = {
-  digital: {
-    front_matter: [
-      { filename: 'cover_digital.xhtml', type: 'titlepage' },
-      { filename: 'credits_digital.xhtml', type: 'credits' },
-    ],
-    back_matter: [],
-  },
-  print: {
-    front_matter: [
-      { filename: 'title_only.xhtml', type: 'title_only' },
-      { filename: 'credits_print.xhtml', type: 'credits' },
-      { filename: 'inside_cover_print.xhtml', type: 'titlepage' },
-      { filename: 'taula.xhtml', type: 'taula' },
-    ],
-    back_matter: [],
-  },
-};
+const PREVIEW_MAX_ELEMENTS = 10;
+const PREVIEW_MAX_CHARS = 1800;
 
 function setBuildProfile(profile) {
   buildProfile = profile;
   document.getElementById('build-tab-digital').classList.toggle('active', profile === 'digital');
   document.getElementById('build-tab-print').classList.toggle('active',   profile === 'print');
   document.getElementById('build-profile-badge').textContent = profile;
+  document.getElementById('build-profile-label').textContent = profile === 'digital' ? 'Digital' : 'Print';
   document.getElementById('btn-hyphenate').disabled = true;
   document.getElementById('btn-dehyphenate').disabled = true;
   renderBuildPanel();
@@ -36,8 +20,12 @@ async function loadBuildConfig() {
   if (!currentProject) return;
   try {
     buildConfig = await apiFetch('GET', `/projects/${currentProject.id}/build-config`);
+    console.log('loadBuildConfig SUCCESS:', buildConfig);
     normalizeBuildConfig(buildConfig);
-  } catch(e) { buildConfig = null; }
+  } catch(e) { 
+    console.log('loadBuildConfig FAILED:', e);
+    buildConfig = null; 
+  }
   renderBuildPanel();
 }
 
@@ -68,6 +56,12 @@ function renderBuildPanel() {
   }
   document.getElementById('btn-hyphenate').disabled = false;
   document.getElementById('btn-dehyphenate').disabled = false;
+  document.getElementById('build-profile-label').textContent = buildProfile === 'digital' ? 'Digital' : 'Print';
+  // Show/hide print-only buttons
+  const isPrint = buildProfile === 'print';
+  document.querySelectorAll('.print-only-btn').forEach(btn => {
+    btn.style.display = isPrint ? '' : 'none';
+  });
   const prof = buildConfig[buildProfile];
   if (currentProject) {
     document.getElementById('build-author').value   = currentProject.author    || '';
@@ -77,9 +71,86 @@ function renderBuildPanel() {
   renderBuildList('build-front-list',   prof.front_matter || [], 'front');
   renderBuildList('build-back-list',    prof.back_matter  || [], 'back');
   renderChapterList('build-chapter-list', prof.chapters   || []);
+  // Blank page counters — print only
+  renderBlanksRow('build-front-blanks', 'front', isPrint);
+  renderBlanksRow('build-back-blanks',  'back',  isPrint);
 }
 
 let buildPreviewFile = null;
+
+function renderBlanksRow(containerId, section, isPrint) {
+  const el = document.getElementById(containerId);
+  if (!isPrint) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  const prof     = buildConfig[buildProfile];
+  const keyBef   = section === 'front' ? 'blanks_before_front' : 'blanks_before_back';
+  const keyAft   = section === 'front' ? 'blanks_after_front'  : 'blanks_after_back';
+  const valBef   = prof[keyBef] ?? 0;
+  const valAft   = prof[keyAft] ?? 0;
+  const titleBef = section === 'front' ? 'Blank pages before front matter' : 'Blank pages before back matter';
+  const titleAft = section === 'front' ? 'Blank pages after front matter'  : 'Blank pages after back matter';
+  el.innerHTML = `
+    <span class="blanks-ctrl" title="${titleBef}">
+      ▢↑
+      <button class="blanks-btn" onclick="setBlanks('${section}','before',-1)">−</button>
+      <span class="blanks-val" id="blanks-${section}-before">${valBef}</span>
+      <button class="blanks-btn" onclick="setBlanks('${section}','before',1)">+</button>
+    </span>
+    <span class="blanks-ctrl" title="${titleAft}">
+      ▢↓
+      <button class="blanks-btn" onclick="setBlanks('${section}','after',-1)">−</button>
+      <span class="blanks-val" id="blanks-${section}-after">${valAft}</span>
+      <button class="blanks-btn" onclick="setBlanks('${section}','after',1)">+</button>
+    </span>
+  `;
+}
+
+async function setBlanks(section, pos, delta) {
+  if (!buildConfig || buildProfile !== 'print') return;
+  const key = section === 'front'
+    ? (pos === 'before' ? 'blanks_before_front' : 'blanks_after_front')
+    : (pos === 'before' ? 'blanks_before_back'  : 'blanks_after_back');
+  const prof   = buildConfig['print'];
+  const newVal = Math.max(0, (prof[key] ?? 0) + delta);
+  prof[key] = newVal;
+  // Update display immediately
+  const span = document.getElementById(`blanks-${section}-${pos}`);
+  if (span) span.textContent = newVal;
+  await saveBuildConfig();
+}
+
+async function toggleNav(section, idx) {
+  if (!buildConfig || buildProfile !== 'digital') return;
+  if (section === 'chapter') {
+    const ch = chaptersEditing[idx];
+    ch.nav = ch.nav === false ? true : false;
+    buildConfig['digital'].chapters[idx].nav = ch.nav;
+  } else {
+    const key  = section === 'front' ? 'front_matter' : 'back_matter';
+    const item = buildConfig['digital'][key][idx];
+    item.nav   = item.nav ? false : true;
+  }
+  await saveBuildConfig();
+  renderBuildPanel();
+}
+
+async function toggleToc(section, idx) {
+  if (!buildConfig || buildProfile !== 'print') return;
+  const key  = section === 'front' ? 'front_matter' : 'back_matter';
+  const item = buildConfig['print'][key][idx];
+  item.toc   = item.toc ? false : true;
+  await saveBuildConfig();
+  renderBuildPanel();
+}
+
+async function togglePag(idx) {
+  if (!buildConfig || buildProfile !== 'print') return;
+  const ch = chaptersEditing[idx];
+  ch.pag = ch.pag === false ? true : false;
+  buildConfig['print'].chapters[idx].pag = ch.pag;
+  await saveBuildConfig();
+  renderBuildPanel();
+}
 
 function renderBuildList(containerId, items, section) {
   const el = document.getElementById(containerId);
@@ -97,8 +168,9 @@ function renderBuildList(containerId, items, section) {
     div.draggable = true;
     div.innerHTML = `
       <span class="bi-handle" title="Drag to reorder" style="cursor:grab">⠿</span>
-      <span class="bi-type">${escHtml(item.type || 'file')}</span>
       <span class="bi-label" title="${escHtml(item.filename || item.id || '')}">${escHtml(item.filename || item.id || '')}</span>
+      ${buildProfile === 'digital' ? `<button class="bi-nav${item.nav ? ' is-nav' : ''}" title="${item.nav ? 'In nav/toc — click to remove' : 'Not in nav/toc — click to add'}" onclick="event.stopPropagation();toggleNav('${section}',${idx})">${item.nav ? 'NAV' : '🚫'}</button>` : ''}
+      ${buildProfile === 'print' && section === 'front' ? `<button class="bi-nav${item.toc ? ' is-nav' : ''}" title="${item.toc ? 'TOC source — click to remove' : 'Not TOC source — click to set'}" onclick="event.stopPropagation();toggleToc('${section}',${idx})">${item.toc ? 'TOC' : '🚫'}</button>` : ''}
       <button class="bi-toggle" title="Edit filename" onclick="event.stopPropagation();startBuildItemRename(this, '${section}', ${idx})">✎</button>
       <button class="bi-toggle" title="Delete" onclick="event.stopPropagation();deleteBuildItem('${section}', ${idx})">×</button>
     `;
@@ -142,25 +214,16 @@ function renderBuildList(containerId, items, section) {
 }
 
 // ── Chapter list state ────────────────────────────────────────────────────────
-// chaptersDirty and chaptersEditing live in globals.js (written from projects.js)
+// chaptersEditing lives in globals.js
 
-function markChaptersDirty() {
-  chaptersDirty = true;
-  document.getElementById('chapters-dirty-badge').classList.remove('hidden');
-  document.getElementById('btn-save-chapters').classList.remove('hidden');
-}
-
-function clearChaptersDirty() {
-  chaptersDirty = false;
-  document.getElementById('chapters-dirty-badge').classList.add('hidden');
-  document.getElementById('btn-save-chapters').classList.add('hidden');
+// Update build_config.json only (reorder, rename)
+async function _saveChapterConfig(desired) {
+  ['digital', 'print'].forEach(p => { buildConfig[p].chapters = desired; });
+  await saveBuildConfig();
 }
 
 function renderChapterList(containerId, chapters) {
-  // Keep a working copy for edits; only reset if not dirty
-  if (!chaptersDirty) {
-    chaptersEditing = chapters.map(ch => ({ ...ch }));
-  }
+  chaptersEditing = chapters.map(ch => ({ ...ch }));
   _renderChaptersFromEditing(containerId);
 }
 
@@ -178,8 +241,9 @@ function _renderChaptersFromEditing(containerId) {
     div.draggable = true;
     div.innerHTML = `
       <span class="bi-handle" title="Drag to reorder">⠿</span>
-      <span class="bi-type">${escHtml(ch.type || 'chapter')}</span>
       <span class="bi-label" title="${escHtml(ch.filename)}">${escHtml(ch.filename)}</span>
+      ${buildProfile === 'digital' ? `<button class="bi-nav${ch.nav === false ? '' : ' is-nav'}" title="${ch.nav === false ? 'Not in nav/toc — click to add' : 'In nav/toc — click to remove'}" onclick="event.stopPropagation();toggleNav('chapter',${idx})">${ch.nav === false ? '🚫' : 'NAV'}</button>` : ''}
+      ${buildProfile === 'print' ? `<button class="bi-nav${ch.pag === false ? '' : ' is-nav'}" title="${ch.pag === false ? 'Not in TOC page list — click to add' : 'In TOC page list — click to remove'}" onclick="event.stopPropagation();togglePag(${idx})">${ch.pag === false ? '🚫' : 'PAG'}</button>` : ''}
       <button class="bi-toggle" title="Edit filename" onclick="event.stopPropagation();startChapterRename(this, ${idx})">✎</button>
       <button class="bi-toggle" title="Delete" onclick="event.stopPropagation();deleteChapterEntry(${idx})">×</button>
     `;
@@ -211,7 +275,8 @@ function _renderChaptersFromEditing(containerId) {
       if (fromIdx === idx) return;
       const [moved] = chaptersEditing.splice(fromIdx, 1);
       chaptersEditing.splice(idx, 0, moved);
-      markChaptersDirty();
+      const desired = chaptersEditing.map(c => ({ filename: c.filename, name: c.name, type: c.type || 'chapter', enabled: true }));
+      _saveChapterConfig(desired);
       _renderChaptersFromEditing(containerId);
     });
 
@@ -226,63 +291,59 @@ function startChapterRename(btn, idx) {
 
   label.style.display = 'none';
   btn.style.display   = 'none';
+
+  const stem = ch.filename.replace(/\.xhtml$/, '');
   const input = document.createElement('input');
   input.type  = 'text';
-  input.value = ch.filename;
+  input.value = stem;
   input.style.cssText = 'flex:1;font-size:0.82rem;padding:0.1rem 0.4rem;background:var(--surface2);border:1px solid var(--accent);border-radius:3px;color:var(--text);font-family:var(--mono)';
+  const ext = document.createElement('span');
+  ext.textContent = '.xhtml';
+  ext.style.cssText = 'font-size:0.82rem;color:var(--text3);font-family:var(--mono);padding:0 0.2rem;align-self:center';
   item.insertBefore(input, btn);
+  item.insertBefore(ext, btn);
   input.focus(); input.select();
 
-  function commit() {
-    const newFilename = input.value.trim();
-    if (newFilename && newFilename !== ch.filename) {
-      chaptersEditing[idx].filename = newFilename;
-      markChaptersDirty();
-    }
+  async function commit() {
+    const newStem = input.value.trim();
     input.remove();
-    label.textContent = chaptersEditing[idx].filename;
+    ext.remove();
     label.style.display = '';
     btn.style.display   = '';
+    if (!newStem || newStem === stem) {
+      label.textContent = ch.filename;
+      return;
+    }
+    const newFilename = newStem + '.xhtml';
+    try {
+      await apiFetch('PUT', `/projects/${currentProject.id}/xhtml/${ch.filename}/rename`, { new_filename: newFilename });
+      chaptersEditing[idx].filename = newFilename;
+      await _saveChapterConfig(chaptersEditing.map(c => ({ filename: c.filename, name: c.name, type: c.type || 'chapter', enabled: true })));
+      _renderChaptersFromEditing('build-chapter-list');
+    } catch(e) {
+      showStatus('build-status', '\u2717 ' + e.message, 'err');
+      label.textContent = ch.filename;
+    }
   }
 
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.remove(); label.style.display = ''; btn.style.display = ''; }
+    if (e.key === 'Escape') { input.remove(); ext.remove(); label.style.display = ''; btn.style.display = ''; }
   });
 }
 
-function deleteChapterEntry(idx) {
-  if (!confirm(`Delete "${chaptersEditing[idx].name || chaptersEditing[idx].filename}"?\nThis will remove the file from disk.`)) return;
-  chaptersEditing.splice(idx, 1);
-  markChaptersDirty();
-  _renderChaptersFromEditing('build-chapter-list');
-}
-
-async function saveChapters() {
-  if (!currentProject || !buildConfig) return;
-  const btn = document.getElementById('btn-save-chapters');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-
-  // Build the desired state: original filename → new name mapping, ordered list
-  const desired = chaptersEditing.map(ch => ({ filename: ch.filename, name: ch.name, type: ch.type || 'chapter' }));
-
-  // Compute deletes: filenames in current buildConfig not in desired
-  const desiredSet   = new Set(desired.map(c => c.filename));
-  const currentChaps = buildConfig[buildProfile]?.chapters || [];
-  const toDelete     = currentChaps.filter(c => !desiredSet.has(c.filename)).map(c => c.filename);
-
+async function deleteChapterEntry(idx) {
+  const ch = chaptersEditing[idx];
+  if (!confirm(`Delete "${ch.name || ch.filename}"?\nThis will remove the file from disk.`)) return;
   try {
-    await apiFetch('POST', `/projects/${currentProject.id}/chapters/sync`, { chapters: desired, delete: toDelete });
-
-    // Update both profiles in buildConfig
-    ['digital', 'print'].forEach(p => { buildConfig[p].chapters = desired.map(ch => ({ ...ch, enabled: true })); });
-    await saveBuildConfig();
-    clearChaptersDirty();
-    renderBuildPanel();
-    showStatus('build-status', '✓ Chapters saved', 'ok');
-  } catch(e) { showStatus('build-status', '✗ ' + e.message, 'err'); }
-  finally { btn.disabled = false; btn.textContent = 'Save'; }
+    await apiFetch('DELETE', `/projects/${currentProject.id}/chapters/${ch.filename}`);
+  } catch(e) { showStatus('build-status', '✗ ' + e.message, 'err'); return; }
+  chaptersEditing.splice(idx, 1);
+  const desired = chaptersEditing.map(c => ({ filename: c.filename, name: c.name, type: c.type || 'chapter', enabled: true }));
+  await _saveChapterConfig(desired);
+  _renderChaptersFromEditing('build-chapter-list');
+  showStatus('build-status', `✓ ${ch.filename} deleted`, 'ok');
 }
 
 async function addBuildChapter() {
@@ -291,18 +352,17 @@ async function addBuildChapter() {
   if (!name || !name.trim()) return;
   const typeVal = prompt('Type (chapter / part / record):', 'chapter') || 'chapter';
 
-  const slug       = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  const filename   = `${typeVal}_${slug}.xhtml`;
-
-  // Create the file on disk now so it exists when Save is clicked
+  let result;
   try {
-    await apiFetch('POST', `/projects/${currentProject.id}/chapters`, { filename, name: name.trim(), type: typeVal });
+    result = await apiFetch('POST', `/projects/${currentProject.id}/chapters`, { name: name.trim(), type: typeVal });
   } catch(e) { showStatus('build-status', '✗ ' + e.message, 'err'); return; }
 
+  const { filename } = result.chapter;
   chaptersEditing.push({ filename, name: name.trim(), type: typeVal, enabled: true });
-  markChaptersDirty();
+  const desired = chaptersEditing.map(c => ({ filename: c.filename, name: c.name, type: c.type || 'chapter', enabled: true }));
+  await _saveChapterConfig(desired);
   _renderChaptersFromEditing('build-chapter-list');
-  showStatus('build-status', `✓ ${filename} added — click Save to confirm`, 'ok');
+  showStatus('build-status', `✓ ${filename} added`, 'ok');
 }
 
 async function addNewCss() {
@@ -322,57 +382,74 @@ function startBuildItemRename(btn, section, idx) {
   const div  = btn.closest('.build-item');
   const label = div.querySelector('.bi-label');
 
-  // Get current filename from either filename or id field
   const currentFilename = item.filename || (item.id ? (item.id.endsWith('.xhtml') ? item.id : item.id + '.xhtml') : '');
+  const stem = currentFilename.replace(/\.xhtml$/, '');
 
   label.style.display = 'none';
   btn.style.display   = 'none';
   const input = document.createElement('input');
   input.type  = 'text';
-  input.value = currentFilename;
+  input.value = stem;
   input.style.cssText = 'flex:1;font-size:0.82rem;padding:0.1rem 0.4rem;background:var(--surface2);border:1px solid var(--accent);border-radius:3px;color:var(--text);font-family:var(--mono)';
+  const ext = document.createElement('span');
+  ext.textContent = '.xhtml';
+  ext.style.cssText = 'font-size:0.82rem;color:var(--text3);font-family:var(--mono);padding:0 0.2rem;align-self:center';
   div.insertBefore(input, btn);
+  div.insertBefore(ext, btn);
   input.focus(); input.select();
 
-  function commit() {
-    let newFilename = input.value.trim();
-    if (!newFilename) return;
-    
-    // Auto-add .xhtml if no extension
-    if (!newFilename.includes('.')) {
-      newFilename = newFilename + '.xhtml';
-    } else if (!newFilename.endsWith('.xhtml')) {
-      showStatus('build-status', '✗ Only .xhtml files are supported', 'err');
-      input.remove();
-      label.style.display = '';
-      btn.style.display   = '';
-      return;
-    }
-    
-    if (newFilename !== currentFilename) {
-      item.filename = newFilename;
-      if (item.id) delete item.id; // Remove old format field
-      saveBuildConfig();
-    }
+  async function commit() {
+    const newStem = input.value.trim();
     input.remove();
-    label.textContent = newFilename;
+    ext.remove();
     label.style.display = '';
     btn.style.display   = '';
+    if (!newStem || newStem === stem) {
+      label.textContent = currentFilename;
+      return;
+    }
+    const newFilename = newStem + '.xhtml';
+    try {
+      await apiFetch('PUT', `/projects/${currentProject.id}/xhtml/${currentFilename}/rename`, { new_filename: newFilename });
+      item.filename = newFilename;
+      if (item.id) delete item.id;
+      ['digital', 'print'].forEach(p => {
+        ['front_matter', 'back_matter'].forEach(sec => {
+          (buildConfig[p]?.[sec] || []).forEach(i => { if (i.filename === currentFilename) i.filename = newFilename; });
+        });
+      });
+      await saveBuildConfig();
+      label.textContent = newFilename;
+    } catch(e) {
+      showStatus('build-status', '\u2717 ' + e.message, 'err');
+      label.textContent = currentFilename;
+    }
   }
 
   input.addEventListener('blur', commit);
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter')  { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { input.remove(); label.style.display = ''; btn.style.display = ''; }
+    if (e.key === 'Escape') { input.remove(); ext.remove(); label.style.display = ''; btn.style.display = ''; }
   });
 }
 
-function deleteBuildItem(section, idx) {
+async function deleteBuildItem(section, idx) {
   const key = section === 'front' ? 'front_matter' : 'back_matter';
   const item = buildConfig[buildProfile][key][idx];
   if (!confirm(`Delete "${item.filename}"?\nThis will remove the file from disk.`)) return;
-  buildConfig[buildProfile][key].splice(idx, 1);
-  saveBuildConfig(); renderBuildPanel();
+  const filename = item.filename;
+  try {
+    await apiFetch('DELETE', `/projects/${currentProject.id}/xhtml/${filename}`);
+  } catch(e) { showStatus('build-status', '\u2717 ' + e.message, 'err'); return; }
+  ['digital', 'print'].forEach(p => {
+    ['front_matter', 'back_matter'].forEach(sec => {
+      if (buildConfig[p]?.[sec]) {
+        buildConfig[p][sec] = buildConfig[p][sec].filter(i => i.filename !== filename);
+      }
+    });
+  });
+  await saveBuildConfig();
+  renderBuildPanel();
 }
 
 async function addBuildItem(section) {
@@ -457,10 +534,10 @@ async function previewBuildItem(item) {
       const children = Array.from(bel.children);
       const preview = [];
       for (const el of children) {
-        if (preview.length >= 3) break;
+        if (preview.length >= PREVIEW_MAX_ELEMENTS) break;
         const text = el.textContent?.trim();
         if (text) {
-          preview.push(`<${el.tagName.toLowerCase()}>${escHtml(text.substring(0, 100))}${text.length > 100 ? '…' : ''}</${el.tagName.toLowerCase()}>`);
+          preview.push(`<${el.tagName.toLowerCase()}>${escHtml(text.substring(0, PREVIEW_MAX_CHARS))}${text.length > PREVIEW_MAX_CHARS ? '…' : ''}</${el.tagName.toLowerCase()}>`);
         }
       }
       const html = preview.length ? preview.join('<br/>') : '<p style="font-family:var(--mono);font-size:0.72rem;color:var(--text3)">(empty file)</p>';
@@ -533,112 +610,28 @@ async function assignBuildFile(oldFilename, newFilename) {
 }
 
 async function openBuildItemInEditor() {
-  
   if (!buildPreviewFile) {
-    console.error('openBuildItemInEditor: buildPreviewFile is not set');
     showStatus('build-status', '✗ No file selected in preview', 'err');
     return;
   }
-  
-  
-  // Show editor panel
-  showPanel('editor');
-  
-  // Open the file directly (same logic as openChapter)
   if (isDirty && currentChapterFile) {
     if (!confirm('You have unsaved changes. Discard them?')) return;
   }
-  
-  document.querySelectorAll('.editor-fileitem').forEach(e => e.classList.remove('active'));
-  currentChapterFile = buildPreviewFile;
-  document.getElementById('editor-filename').textContent = buildPreviewFile;
-  setEditorStatus('Loading…', '');
-  ltMatches = []; isDirty = false; fileIsHyphenated = false;
-
-  const isCss = buildPreviewFile.endsWith('.css');
-  const openPath = isCss ? `/projects/${currentProject.id}/styles/${buildPreviewFile}`
-                         : `/projects/${currentProject.id}/xhtml/${buildPreviewFile}`;
-
-
-  try {
-    const data = await apiFetch('GET', `${openPath}?t=${Date.now()}`);
-
-    if (isCss) {
-      // CSS opens in code mode
-      if (editorMode !== 'code') await switchToCodeMode();
-      if (monacoEditor) {
-        const model = monacoEditor.getModel();
-        if (model) monaco.editor.setModelLanguage(model, 'css');
-        monacoLoading = true;
-        monacoEditor.setValue(data.content);
-        monacoLoading = false;
-        setTimeout(() => { isDirty = false; }, 0);
-      }
-      document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
-      document.getElementById('btn-toggle-mode').style.display = 'none';
-      document.getElementById('btn-preview-file').classList.add('hidden');
-      if (previewVisible) togglePreviewPane();
-      setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
-    } else {
-      // XHTML file - switch to text mode first to show the editor-content div
-      
-      // Force text mode
-      if (editorMode !== 'text') {
-        switchToTextMode();
-      }
-      
-      // Ensure editor-scroll is visible
-      document.getElementById('editor-scroll').classList.add('active');
-      document.getElementById('monaco-container').classList.remove('active');
-      editorMode = 'text';
-      
-      document.getElementById('btn-toggle-mode').style.display = '';
-      document.getElementById('btn-preview-file').classList.remove('hidden');
-      const parser = new DOMParser();
-      const doc    = parser.parseFromString(data.content, 'application/xhtml+xml');
-      
-      // Extract stylesheet href
-      const linkEl = doc.querySelector('link[rel="stylesheet"]');
-      if (linkEl) {
-        currentStylesheet = linkEl.getAttribute('href') || '../styles/main.css';
-      } else {
-        currentStylesheet = '../styles/main.css';
-      }
-      
-      // Load content into editor with footnote conversion
-      const bel = doc.querySelector('body');
-      if (!bel) { setEditorStatus('Invalid XHTML: no body element', 'err'); return; }
-      
-      // Convert footnote comments to markers for display
-      let bodyHtml = bel.innerHTML;
-      bodyHtml = bodyHtml.replace(/<!--fn:(\d+)(?::(\w+))?-->/g, (_, n, v) => {
-        const variant = v || 'def';
-        const label   = variant === 'def' ? `[fn:${n}]` : `[fn:${n}:${variant}]`;
-        return `<span class="fn-marker" data-fn="${n}" data-variant="${variant}" contenteditable="false">${label}</span>`;
-      });
-      
-      const editorContentEl = document.getElementById('editor-content');
-      editorContentEl.innerHTML = bodyHtml;
-      editorContentEl.dataset.rawXhtml = data.content;
-      
-      // Check for grammar (only if project file)
-      if (data.source === 'project') {
-        // Only do grammar check in text mode
-        if (editorMode === 'text') {
-          document.querySelectorAll('.lt-only').forEach(el => el.style.display = '');
-          await checkGrammar();
-        } else {
-          document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
-        }
-      } else {
-        document.querySelectorAll('.lt-only').forEach(el => el.style.display = 'none');
-        setEditorStatus('⚠ Loaded from global — save to create project override', 'warn');
-      }
-    }
-  } catch(e) {
-    console.error('openBuildItemInEditor: error', e);
-    setEditorStatus(`✗ ${e.message}`, 'err');
-    document.getElementById('editor-content').innerHTML = '';
-  }
+  // Delegate to loadChapterList which will call openChapter — identical to a user click
+  _pendingActiveFile = buildPreviewFile;
+  showPanel('editor');
 }
-
+async function buildToc() {
+  if (!currentProject) return;
+  const btn = document.getElementById('btn-build-toc');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Building…';
+  showStatus('build-action-status', 'Building TOC…', 'info');
+  try {
+    const data = await apiFetch('POST', `/projects/${currentProject.id}/build-toc`);
+    if (!data.ok) {
+      showStatus('build-action-status', '✗ ' + (data.error || 'TOC build failed'), 'err'); return;
+    }
+    showStatus('build-action-status', `✓ TOC built — ${data.entries} entr${data.entries === 1 ? 'y' : 'ies'} inserted`, 'ok');
+  } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = '☰ Build TOC'; }
+}

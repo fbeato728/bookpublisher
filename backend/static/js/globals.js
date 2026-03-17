@@ -22,4 +22,6 @@ let buildConfig        = null;
 let chaptersDirty      = false;
 let chaptersEditing    = [];       // working copy while editing chapter list
 let currentStylesheet  = '../styles/main.css'; // href from the currently loaded file
-
+let cachedStyles = {};
+let lastXhtmlStylesheets = []; // Track stylesheets from the last opened XHTML
+var _pendingActiveFile = null;
