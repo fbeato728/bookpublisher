@@ -125,8 +125,23 @@ function showLtPopover(span, match) {
   const surface = match._surface || '';
   ignBtn.classList.toggle('hidden', !surface);
   ignBtn.textContent = `⊘ Ignore "${surface}" for this project`;
+
+  // Rule ignore button — hide for TYPOS/SPELLING categories
+  const ruleIgnBtn  = document.getElementById('pop-ignore-rule-btn');
+  const divider     = document.getElementById('pop-ignore-divider');
+  const cat         = (match.rule?.category?.id || '').toUpperCase();
+  const noIgnoreCats = ['TYPOS', 'SPELLING'];
+  const showRuleBtn  = !!surface && !noIgnoreCats.includes(cat);
+  ruleIgnBtn.classList.toggle('hidden', !showRuleBtn);
+  divider.classList.toggle('hidden', !(surface || showRuleBtn) || !(surface && showRuleBtn));
+  if (showRuleBtn) {
+    const ruleDesc = match.rule?.description || match.rule?.id || '';
+    ruleIgnBtn.textContent = `⊘ Ignore «${surface}» + this rule`;
+    ruleIgnBtn.title = ruleDesc;
+  }
+  ruleIgnBtn._match = match;
   const pop = document.getElementById('lt-popover'); pop.style.display='block';
-  const rect=span.getBoundingClientRect(), pw=280, ph=pop.offsetHeight||100;
+  const rect=span.getBoundingClientRect(), pw=320, ph=pop.offsetHeight||100;
   let left=rect.left, top=rect.bottom+8, above=false;
   if (top+ph>window.innerHeight-12) { top=rect.top-ph-8; above=true; }
   if (left+pw>window.innerWidth-12) left=window.innerWidth-pw-12;
@@ -681,6 +696,7 @@ function onDocumentFormatKeydown(e) {
 
 // ── Ignore words ─────────────────────────────────────────────────────────────
 let ignoreWords = [];
+let ignoreRules = [];
 
 async function loadIgnoreWords() {
   if (!currentProject) return;
@@ -703,6 +719,64 @@ function renderIgnoreList() {
     el.className = 'ignore-item';
     el.innerHTML = `<span>${escHtml(word)}</span><button class="ignore-del" title="Remove">×</button>`;
     el.querySelector('.ignore-del').addEventListener('click', () => removeIgnoreWord(word));
+    list.appendChild(el);
+  });
+}
+
+async function ignoreCurrentRule() {
+  const btn = document.getElementById('pop-ignore-rule-btn');
+  const surface = btn._match?._surface || '';
+  const ruleId  = btn._match?.rule?.id  || '';
+  if (!surface || !ruleId) return;
+  await addIgnoreRule(ruleId, surface);
+  // Remove matching marks from current check
+  ltMatches = ltMatches.filter(m => !(
+    (m.rule?.id || '') === ruleId &&
+    (m._surface || '').toLowerCase() === surface.toLowerCase()
+  ));
+  applyLtMarks(ltMatches);
+  const n = ltMatches.length;
+  setEditorStatus(n === 0 ? '✓ All issues resolved' : `${n} issue${n!==1?'s':''} remaining`, n === 0 ? 'ok' : 'warn');
+  hideLtPopover();
+}
+
+async function addIgnoreRule(ruleId, surface) {
+  if (!currentProject) return;
+  try {
+    await apiFetch('POST', `/projects/${currentProject.id}/ignore-rules`, { rule_id: ruleId, surface });
+    await loadIgnoreRules();
+  } catch(e) { console.error('addIgnoreRule:', e); }
+}
+
+async function removeIgnoreRule(ruleId, surface) {
+  if (!currentProject) return;
+  try {
+    await apiFetch('DELETE', `/projects/${currentProject.id}/ignore-rules?rule_id=${encodeURIComponent(ruleId)}&surface=${encodeURIComponent(surface)}`);
+    await loadIgnoreRules();
+  } catch(e) { console.error('removeIgnoreRule:', e); }
+}
+
+async function loadIgnoreRules() {
+  if (!currentProject) return;
+  try {
+    ignoreRules = await apiFetch('GET', `/projects/${currentProject.id}/ignore-rules`);
+    renderIgnoreRules();
+  } catch(e) { console.error('loadIgnoreRules:', e); }
+}
+
+function renderIgnoreRules() {
+  const list = document.getElementById('ignore-rules-list');
+  if (!list) return;
+  if (!ignoreRules.length) {
+    list.innerHTML = '<div class="ignore-empty">No rule exceptions yet.<br>Click ⊘ in the grammar popover to add one.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  ignoreRules.forEach(rule => {
+    const el = document.createElement('div');
+    el.className = 'ignore-item';
+    el.innerHTML = `<span title="${escHtml(rule.rule_id)}">${escHtml(rule.surface)} <span style="color:var(--text3);font-size:0.65em">${escHtml(rule.rule_id)}</span></span><button class="ignore-del" title="Remove">×</button>`;
+    el.querySelector('.ignore-del').addEventListener('click', () => removeIgnoreRule(rule.rule_id, rule.surface));
     list.appendChild(el);
   });
 }
@@ -741,7 +815,7 @@ async function removeIgnoreWord(word) {
 function toggleIgnorePanel() {
   const panel = document.getElementById('ignore-panel');
   panel.classList.toggle('open');
-  if (panel.classList.contains('open')) loadIgnoreWords();
+  if (panel.classList.contains('open')) { loadIgnoreWords(); loadIgnoreRules(); }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

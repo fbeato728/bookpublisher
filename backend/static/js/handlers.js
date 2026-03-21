@@ -94,6 +94,7 @@ document.getElementById('btn-inject-footnotes').addEventListener('click', inject
 document.getElementById('btn-close-fn-dialog').addEventListener('click', closeFnDialog);
 document.getElementById('fn-dialog-overlay').addEventListener('click', closeFnDialog);
 document.getElementById('pop-ignore-btn').addEventListener('click', ignoreCurrentWord);
+document.getElementById('pop-ignore-rule-btn').addEventListener('click', ignoreCurrentRule);
 // ── PDF Tools ─────────────────────────────────────────────────────────────────
 document.getElementById('btn-convert-pdf').addEventListener('click', goToPdfTools);
 document.getElementById('btn-build-toc').addEventListener('click', buildToc);

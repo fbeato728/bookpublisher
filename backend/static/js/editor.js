@@ -160,6 +160,11 @@ async function openChapter(filename, listEl) {
   setEditorStatus('Loading…', '');
   ltMatches = []; isDirty = false; fileIsHyphenated = false;
 
+  // Reset scroll state for both preview pane and Monaco editor
+  const pvBody = document.getElementById('preview-pane-body');
+  if (pvBody) pvBody.scrollTop = 0;
+  if (monacoEditor) monacoEditor.revealLine(1);
+
   // Chapters use /chapters/, CSS use /styles/, structural files use /xhtml/
   const isChapter = /^\d{4}_/.test(filename);
   const isCss     = filename.endsWith('.css');
@@ -810,10 +815,28 @@ function onPreviewClick(e) {
   }
   if (!el || el === e.currentTarget) return;
 
-  // Extract text context — enough to be unique, not too long
-  const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
-  if (!rawText || rawText.length < 3) return;
-  const needle = rawText.slice(0, 60);
+  // Extract needle as text up to the first <br/> — handles plain text, <i>text</i>,
+  // mixed inline content, and any combination. textContent is NOT used because it
+  // concatenates <br/>-separated lines into a string that doesn't exist in the source.
+  let needle = '';
+  const INLINE_TAGS = new Set(['i','em','b','strong','span','a','sup','sub']);
+  let collected = '';
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === 'br') break;
+    if (node.nodeType === Node.TEXT_NODE) {
+      collected += node.textContent;
+    } else if (node.nodeType === Node.ELEMENT_NODE && INLINE_TAGS.has(node.tagName.toLowerCase())) {
+      collected += node.textContent;
+    }
+    if (collected.replace(/\s+/g, ' ').trim().length >= 60) break;
+  }
+  needle = collected.replace(/\s+/g, ' ').trim().slice(0, 60);
+  // Fall back to full textContent for elements without <br/> structure
+  if (needle.length < 3) {
+    const rawText = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!rawText || rawText.length < 3) return;
+    needle = rawText.slice(0, 60);
+  }
 
   const model = monacoEditor.getModel();
   if (!model) return;

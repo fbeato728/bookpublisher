@@ -11,7 +11,7 @@ from routes.xhtml import xhtml_bp
 from routes.epub_import import epub_bp
 from routes.build import build_bp
 from routes.ignore import ignore_bp
-from routes.ignore import load_ignore
+from routes.ignore import load_ignore, load_ignore_rules
 from routes.images import images_bp
 from routes.footnotes import footnotes_bp
 from routes.hyphenate import hyphenate_bp
@@ -49,8 +49,9 @@ def lt_check():
     # Strip soft hyphens (&shy; / \u00ad) so LT never sees them
     text = text.replace('\u00ad', '')
 
-    # Load this project's ignore list
-    ignored = load_ignore(project_id) if project_id else set()
+    # Load this project's ignore lists
+    ignored       = load_ignore(project_id)       if project_id else set()
+    ignored_rules = load_ignore_rules(project_id) if project_id else []
 
     try:
         resp = http_requests.post(LT_URL, data={
@@ -61,13 +62,26 @@ def lt_check():
         data = resp.json()
         matches = data.get('matches', [])
 
-        # Filter out any match whose surface form is in the ignore list
+        # Filter out any match whose surface form is in the word ignore list
+        def _surface(m):
+            s = m.get('offset', 0)
+            l = m.get('length', 0)
+            return text[s:s+l].lower()
+
         if ignored:
-            def _surface(m):
-                s = m.get('offset', 0)
-                l = m.get('length', 0)
-                return text[s:s+l].lower()
             matches = [m for m in matches if _surface(m) not in ignored]
+
+        # Filter out rule+surface exceptions (never filter TYPOS or SPELLING)
+        if ignored_rules:
+            _no_ignore_cats = {'TYPOS', 'SPELLING'}
+            def _rule_ignored(m):
+                cat = (m.get('rule', {}).get('category', {}).get('id') or '').upper()
+                if cat in _no_ignore_cats:
+                    return False
+                rid = m.get('rule', {}).get('id', '')
+                surf = _surface(m)
+                return any(r['rule_id'] == rid and r['surface'] == surf for r in ignored_rules)
+            matches = [m for m in matches if not _rule_ignored(m)]
 
         return jsonify(matches)
 

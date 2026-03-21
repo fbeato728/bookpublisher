@@ -30,6 +30,21 @@ body.paginated { page: main; }
   }
 }
 
+
+/* @page special_layout {
+    margin: 0;
+}
+
+.special-page {
+    page: special_layout;
+    background-repeat: repeat;
+    background-size: 5px auto;
+  
+    display: block;
+    min-height: 100vh; 
+    prince-page-group: start;
+} */
+
 /* ── Blank pages: no running content ─────────────────────────────────────── */
 
 @page :blank {
