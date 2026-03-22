@@ -86,7 +86,13 @@ TOC_NCX = """<?xml version='1.0' encoding='UTF-8'?>
 
 def load_meta(project_id):
     with open(os.path.join(PROJECTS_DIR, project_id, 'meta.json')) as f:
-        return json.load(f)
+        meta = json.load(f)
+    # Flatten nested format (new projects) to flat dict for build-time reads
+    if 'metadata' in meta:
+        flat = {k: v for k, v in meta.items() if k != 'metadata'}
+        flat.update(meta['metadata'])
+        return flat
+    return meta
 
 def load_build_config(project_id):
     xhtml_dir = os.path.join(PROJECTS_DIR, project_id, 'xhtml')

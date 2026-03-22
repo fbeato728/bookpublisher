@@ -13,7 +13,11 @@ async function showPanel(name) {
   document.querySelector(`[data-panel="${name}"]`)?.classList.add('active');
   // document.getElementById('fs-control').style.display =
   //   (name === 'split' || name === 'editor') ? 'flex' : 'none';
-  if (name === 'overview' && currentProject) loadOverview();
+  if (name === 'overview' && currentProject) {
+    loadOverview();
+    loadImageList();
+    loadMetadataPanel();
+  }
   if (name === 'build' && currentProject) { 
     const preserveFile = buildPreviewFile;  // Save the currently previewed file
     buildConfig = null; 
@@ -64,22 +68,63 @@ async function openProject(p) {
     if (result === 'cancel') return;
   }
   if (currentProject?.id !== p.id) {
+    // ── Split state ──────────────────────────────────────────────────────────
     splitSavedData = [];
     splitProjectId = null;
     splitMarkers   = [];
+
+    // ── Editor state ─────────────────────────────────────────────────────────
     currentChapterFile = null;
-    currentStylesheet = '../styles/main.css';
-    isDirty = false;
-    chaptersDirty   = false;
-    chaptersEditing = [];
+    currentStylesheet  = '../styles/main.css';
+    isDirty            = false;
+    chaptersDirty      = false;
+    chaptersEditing    = [];
+    ltMatches          = [];
+    ltCheckText        = '';
+    cachedStyles       = {};
+    fileIsHyphenated   = false;
+    if (monacoEditor) {
+      monacoLoading = true;
+      monacoEditor.setValue('');
+      monacoLoading = false;
+    }
     document.getElementById('editor-filename').textContent = '— no file open —';
     document.getElementById('editor-content').innerHTML = '';
     document.getElementById('editor-content').dataset.rawXhtml = '';
+    document.getElementById('preview-pane-body').innerHTML = '';
     setEditorStatus('', '');
+
+    // ── Grammar ignore state ─────────────────────────────────────────────────
+    ignoreWords = [];
+    ignoreRules = [];
+
+    // ── Footnote state ───────────────────────────────────────────────────────
+    projectFootnotes   = [];
+    projectFnVariants  = [];
+    selectedFnVariant  = 'def';
+    _fnMapCache        = null;
+    _fnMapProjectId    = null;
+
+    // ── Build state ──────────────────────────────────────────────────────────
+    buildConfig      = null;
+    buildPreviewFile = null;
+
+    // ── PDF state ────────────────────────────────────────────────────────────
+    pdfConfig       = null;
+    pdfSelectedEpub = null;
+    document.getElementById('pdf-viewer-frame').src = 'about:blank';
+    document.getElementById('pdf-viewer-filename').textContent = 'no PDF loaded';
+    document.getElementById('pdf-log-wrap').classList.add('hidden');
+    document.getElementById('pdf-action-status').textContent = '';
+
     showSplitsView();
   }
-  currentProject = p;
-  document.getElementById('topbar-project').textContent = p.id;
+  // Fetch fresh project data so metadata fields reflect latest meta.json
+  try {
+    const fresh = await apiFetch('GET', `/projects/${p.id}`);
+    currentProject = fresh;
+  } catch { currentProject = p; }
+  document.getElementById('topbar-project').textContent = currentProject.id;
   document.getElementById('project-nav').classList.remove('hidden');
   document.querySelectorAll('.project-item').forEach(el =>
     el.classList.toggle('active', el.dataset.projectId === p.id)
@@ -315,6 +360,7 @@ async function deleteProject() {
   if (!confirm(`Are you sure? "${id}" will be gone forever.`)) return;
   try {
     await apiFetch('DELETE', `/projects/${id}`);
+    localStorage.removeItem('splits:' + id);
     currentProject = null;
     document.getElementById('project-nav').classList.add('hidden');
     await loadProjects();
@@ -332,4 +378,62 @@ async function resetProject() {
     showStatus('overview-status', '✓ Project reset', 'ok');
     loadOverview();
   } catch(e) { showStatus('overview-status', '✗ ' + e.message, 'err'); }
+}
+
+// ── Metadata panel ────────────────────────────────────────────────────────────
+
+async function loadMetadataPanel() {
+  if (!currentProject) return;
+
+  // Populate Group 1 — OPF fields always shown
+  document.getElementById('build-title').value    = currentProject.title     || '';
+  document.getElementById('build-author').value   = currentProject.author    || '';
+  document.getElementById('build-language').value = currentProject.language  || 'ca';
+  document.getElementById('build-publisher').value = currentProject.publisher || 'BonPort';
+
+  // Fetch tokens definition and used tokens for this project
+  const container = document.getElementById('metadata-fields');
+  container.innerHTML = '';
+
+  let tokenDefs = {};
+  let usedTokens = [];
+  try {
+    [tokenDefs, usedTokens] = await Promise.all([
+      apiFetch('GET', '/config/tokens'),
+      apiFetch('GET', `/projects/${currentProject.id}/used-tokens`),
+    ]);
+  } catch(e) {
+    console.error('loadMetadataPanel:', e);
+    return;
+  }
+
+  // Group 1 tokens — skip, already rendered as static fields
+  const GROUP1 = new Set(['title', 'author', 'language', 'publisher']);
+
+  usedTokens.forEach(token => {
+    const def = tokenDefs[token];
+    if (!def) return;
+    if (def.ui === false) return;
+
+    // Determine the primary meta_field
+    const metaField = def.meta_field || (def.meta_fields && def.meta_fields[0]);
+    if (!metaField) return;
+    if (GROUP1.has(metaField)) return;
+
+    const label = def.label || metaField;
+    const value = currentProject[metaField] || '';
+    const inputId = `meta-${metaField}`;
+
+    const row = document.createElement('div');
+    row.className = 'form-group';
+    row.style.marginBottom = '0.5rem';
+    row.innerHTML = `
+      <label class="form-label" for="${inputId}">${escHtml(label)}</label>
+      <input class="form-input" type="text" id="${inputId}"
+        data-meta-field="${metaField}"
+        placeholder="${escHtml(label)}"
+        value="${escHtml(value)}"
+        style="font-size:0.82rem">`;
+    container.appendChild(row);
+  });
 }

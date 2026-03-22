@@ -35,11 +35,13 @@ document.getElementById('btn-save-chapter').addEventListener('click', saveChapte
 document.getElementById('btn-format-xhtml').addEventListener('click', formatXhtml);
 document.getElementById('btn-auto-split').addEventListener('click', autoSplitDetect);
 document.getElementById('btn-apply-splits').addEventListener('click', applySplits);
+document.getElementById('btn-delete-chapters').addEventListener('click', deleteAllChapterFiles);
 document.getElementById('btn-clear-splits').addEventListener('click', clearAllSplits);
 document.getElementById('btn-split-tab-splits').addEventListener('click', showSplitsView);
 document.getElementById('btn-split-tab-footnotes').addEventListener('click', showFootnotesView);
 document.getElementById('btn-bold').addEventListener('click', () => applyFormat('b'));
 document.getElementById('btn-italic').addEventListener('click', () => applyFormat('i'));
+document.getElementById('btn-toggle-comment').addEventListener('click', toggleLineComment);
 document.getElementById('btn-monaco-fs-up').addEventListener('click', monacoFsUp);
 document.getElementById('btn-monaco-fs-down').addEventListener('click', monacoFsDown);
 document.getElementById('editor-content').addEventListener('input', onEditorContentInput);
@@ -71,10 +73,13 @@ document.getElementById('fn-variant-input').addEventListener('keydown', e => {
 document.getElementById('btn-add-fn-variant').addEventListener('click', addFnVariant);
 document.getElementById('btn-delete-footnotes').addEventListener('click', deleteFootnotes);
 
-// ── Build metadata ────────────────────────────────────────────────────────────
-document.getElementById('build-author').addEventListener('blur', function () { saveMetaField('author', this.value); });
-document.getElementById('build-language').addEventListener('blur', function () { saveMetaField('language', this.value); });
-document.getElementById('build-publisher').addEventListener('blur', function () { saveMetaField('publisher', this.value); });
+// ── Metadata fields (Overview panel) — delegated blur on the whole card ─────
+document.getElementById('overview-metadata').addEventListener('focusout', function (e) {
+  // const input = e.target.closest('input[data-meta-field]');
+  const input = e.target.matches('input[data-meta-field]') ? e.target : null;
+  if (!input) return;
+  saveMetaField(input.dataset.metaField, input.value);
+});
 
 // ── Build actions ─────────────────────────────────────────────────────────────
 document.getElementById('btn-hyphenate').addEventListener('click', hyphenateChapters);

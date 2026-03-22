@@ -104,6 +104,23 @@ def get_error_message(error_key, **kwargs):
 
 from routes.utils import fill_tokens
 
+def _flatten_meta(meta):
+    """Normalize meta.json — handles both old flat and new nested format."""
+    if 'metadata' not in meta:
+        return meta
+    flat = {k: v for k, v in meta.items() if k != 'metadata'}
+    flat.update(meta.get('metadata', {}))
+    return flat
+
+def _nest_meta(flat):
+    """Write meta.json in nested format."""
+    _TOP = {'id', 'status', 'chapters', 'original_file', 'xhtml_file',
+            'cover_image', 'digital_inside_cover', 'print_inside_cover'}
+    top  = {k: v for k, v in flat.items() if k in _TOP}
+    book = {k: v for k, v in flat.items() if k not in _TOP}
+    top['metadata'] = book
+    return top
+
 
 def _serialize_element(el):
     """Serialize a body element to string, stripping redundant namespace declarations.
@@ -154,7 +171,8 @@ def apply_splits(project_id):
         return jsonify({'error': get_error_message('full_xhtml_not_found')}), 404
 
     with open(meta_path) as f:
-        meta = json.load(f)
+        _raw_meta = json.load(f)
+    meta = _flatten_meta(_raw_meta)
     book_title = meta.get('title', CONFIG['metadata']['defaults']['title'])
 
     data   = request.json
@@ -196,10 +214,11 @@ def apply_splits(project_id):
         else:
             filename = f"{ch_type}_{slug}" + CONFIG['files']['allowed_extensions']['xhtml']
         chunks.append({
-            'type':     ch_type,
-            'name':     name,
-            'filename': filename,
-            'elements': elements[start:end],
+            'type':         ch_type,
+            'name':         name,
+            'filename':     filename,
+            'elements':     elements[start:end],
+            'before_index': split['before_index'],
         })
 
     # Write XHTML files and collect entries by destination
@@ -228,13 +247,14 @@ def apply_splits(project_id):
         elif chunk['type'] == 'back_matter':
             back_matter_entries.append(entry)
         else:
-            chapter_entries.append({'filename': chunk['filename'], 'type': chunk['type'], 'name': chunk['name']})
+            chapter_entries.append({'filename': chunk['filename'], 'type': chunk['type'], 'name': chunk['name'], 'before_index': chunk['before_index']})
 
     # Update meta.json — only body chapters
     meta['chapters'] = chapter_entries
     meta['status']   = CONFIG['metadata']['status_values']['split']
+    out = _nest_meta(meta) if 'metadata' in _raw_meta else meta
     with open(meta_path, 'w') as f:
-        json.dump(meta, f, indent=CONFIG['files']['json_indent'])
+        json.dump(out, f, indent=CONFIG['files']['json_indent'])
 
     # Update build_config.json
     if os.path.exists(bc_path):
@@ -356,10 +376,12 @@ def sync_chapters(project_id):
 
     # 3. Update meta.json
     with open(meta_path) as f:
-        meta = json.load(f)
+        _raw_meta = json.load(f)
+    meta = _flatten_meta(_raw_meta)
     meta['chapters'] = final_chapters
+    out = _nest_meta(meta) if 'metadata' in _raw_meta else meta
     with open(meta_path, 'w') as f:
-        json.dump(meta, f, indent=CONFIG['files']['json_indent'])
+        json.dump(out, f, indent=CONFIG['files']['json_indent'])
 
     # 4. Update build_config.json
     # Note: build_config.json maintains spine order as front_matter → chapters → back_matter

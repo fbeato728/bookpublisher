@@ -64,9 +64,7 @@ function renderBuildPanel() {
   });
   const prof = buildConfig[buildProfile];
   if (currentProject) {
-    document.getElementById('build-author').value   = currentProject.author    || '';
-    document.getElementById('build-language').value  = currentProject.language  || 'ca';
-    document.getElementById('build-publisher').value = currentProject.publisher || 'BonPort';
+    // Metadata fields now live in the Overview panel
   }
   renderBuildList('build-front-list',   prof.front_matter || [], 'front');
   renderBuildList('build-back-list',    prof.back_matter  || [], 'back');

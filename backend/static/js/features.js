@@ -506,10 +506,12 @@ function renderImageList(images, covers) {
 
 async function uploadImage(input) {
   if (!input.files.length || !currentProject) return;
-  const formData = new FormData();
-  formData.append('file', input.files[0]);
-  try { await apiFetch('POST', `/projects/${currentProject.id}/images`, formData); }
-  catch {}
+  for (const file of input.files) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try { await apiFetch('POST', `/projects/${currentProject.id}/images`, formData); }
+    catch {}
+  }
   input.value = '';
   loadImageList();
 }
@@ -692,6 +694,39 @@ function onDocumentFormatKeydown(e) {
   if (!(e.ctrlKey || e.metaKey)) return;
   if (e.key === 'b') { e.preventDefault(); applyFormat('b'); }
   if (e.key === 'i') { e.preventDefault(); applyFormat('i'); }
+  if (e.key === '/') { e.preventDefault(); toggleLineComment(); }
+}
+
+function toggleLineComment() {
+  if (!monacoEditor) return;
+  const model = monacoEditor.getModel();
+  const sel   = monacoEditor.getSelection();
+  if (!sel || !model) return;
+
+  const edits = [];
+  for (let line = sel.startLineNumber; line <= sel.endLineNumber; line++) {
+    const text    = model.getLineContent(line);
+    const trimmed = text.trimStart();
+    const indent  = text.length - trimmed.length;
+    const indentStr = text.slice(0, indent);
+
+    if (trimmed.startsWith('<!--') && trimmed.endsWith('-->')) {
+      // Uncomment: remove <!-- and -->
+      const inner = trimmed.slice(4, trimmed.length - 3).trim();
+      edits.push({
+        range: new monaco.Range(line, 1, line, text.length + 1),
+        text: indentStr + inner,
+      });
+    } else {
+      // Comment: wrap in <!-- -->
+      edits.push({
+        range: new monaco.Range(line, 1, line, text.length + 1),
+        text: indentStr + '<!-- ' + trimmed + ' -->',
+      });
+    }
+  }
+  monacoEditor.executeEdits('toggle-comment', edits);
+  monacoEditor.focus();
 }
 
 // ── Ignore words ─────────────────────────────────────────────────────────────

@@ -122,7 +122,7 @@
               <input class="form-input" type="text" id="auto-classes" placeholder="CSS classes, comma-separated" style="font-size:0.72rem;padding:0.2rem 0.4rem">
               <button class="btn" id="btn-auto-split" style="font-size:0.72rem;padding:0.2rem 0.5rem">⚡ Auto-detect splits</button>
             </div>
-            <div class="split-sidebar-head" style="margin-top:0.25rem">Split points — <span id="split-count">0</span></div>
+            <div class="split-sidebar-head" style="margin-top:0.25rem" id="split-list-head">Split points — <span id="split-count">0</span></div>
             <div class="split-list" id="split-list">
               <div class="split-list-empty">No splits yet.<br>Click in the text to add one.</div>
             </div>
@@ -131,6 +131,7 @@
               <div id="split-status"></div>
               <button class="btn primary" id="btn-apply-splits">✂ Apply splits</button>
               <button class="btn danger" id="btn-clear-splits">Clear markers</button>
+              <button class="btn danger hidden" id="btn-delete-chapters">✕ Delete chapters</button>
             </div>
           </div>
           <!-- Footnotes review view -->
@@ -156,6 +157,7 @@
             <span class="editor-filename" id="editor-filename">— no file open —</span>
             <button class="fmt-btn" id="btn-bold"   title="Bold (Ctrl+B)"><b>B</b></button>
             <button class="fmt-btn" id="btn-italic" title="Italic (Ctrl+I)"><i>I</i></button>
+            <button class="fmt-btn fmt-btn--wide" id="btn-toggle-comment" title="Toggle comment (Ctrl+/)">&lt;!-&gt;</button>
             <span class="fmt-sep"></span>
             <button class="fmt-btn hidden" id="btn-insert-fn" title="Insert footnote reference">fn</button>
             <span class="fmt-sep"></span>
@@ -181,7 +183,7 @@
             <!-- MOVED: Exceptions button now in preview pane header
             <button class="btn lt-only" id="btn-ignore-panel" title="Exception words">☰ Exceptions</button>
             -->
-            <button class="btn" id="btn-format-xhtml" title="Format / pretty-print XHTML">⟨/⟩</button>
+            <button class="btn" id="btn-format-xhtml" title="Format / pretty-print XHTML">pP</button>
             <button class="btn primary" id="btn-save-chapter">Save</button>
             <!-- DISABLED: Preview always visible - no toggle needed
             <button class="btn lt-only" id="btn-preview-file" style="display:none" onclick="togglePreviewPane()" title="Toggle preview pane">👁 Preview</button>
@@ -202,13 +204,12 @@
         <!-- Preview pane -->
         <div class="preview-pane" id="preview-pane">
           <div class="preview-pane-header">
-            <span style="font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);flex:1">Preview</span>
+            <span class="pv-label">Preview</span>
             <button class="btn mode-digital" id="btn-preview-mode-toggle">
-                <span class="mode-label-digital">Digital</span> | 
-                <span class="mode-label-print">Print</span>
+              <span class="mode-label-digital">Digital</span> |
+              <span class="mode-label-print">Print</span>
             </button>
-            <!-- Grammar check controls -->
-            <select id="lt-lang" style="font-size:0.7rem;padding:0.25rem 0.4rem">
+            <select id="lt-lang" class="pv-select">
               <option value="ca-ES">Català</option>
               <option value="es">Español</option>
               <option value="en-US">English (US)</option>
@@ -216,15 +217,13 @@
               <option value="fr">Français</option>
               <option value="de-DE">Deutsch</option>
             </select>
-            <button class="btn" id="btn-lt-check" style="font-size:0.7rem;padding:0.25rem 0.5rem;white-space:nowrap">✓ Grammar</button>
-            <!-- <button class="btn" id="btn-ignore-panel" style="font-size:0.7rem;padding:0.25rem 0.5rem" title="Exception words">☰ Exceptions</button> -->
-            <button class="btn" id="btn-ignore-panel" style="font-size:0.7rem;padding:0.25rem 0.5rem" title="Exception words">☰ Exceptions</button>
-            <span style="display:flex;align-items:center;gap:0.25rem;">
-              <button class="btn" id="btn-pv-fs-down" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Decrease preview font">−</button>
-              <span id="pv-fs-label" style="font-family:var(--mono);font-size:0.65rem;color:var(--text3);min-width:2.2rem;text-align:center">16px</span>
-              <button class="btn" id="btn-pv-fs-up" style="padding:0.3rem 0.55rem;font-size:0.9rem" title="Increase preview font">+</button>
+            <button class="btn pv-ctrl" id="btn-lt-check">✓ Grammar</button>
+            <button class="btn pv-ctrl" id="btn-ignore-panel" title="Exception words">☰ Exceptions</button>
+            <span class="pv-fs-group">
+              <button class="btn pv-fs-btn" id="btn-pv-fs-down" title="Decrease preview font">−</button>
+              <span id="pv-fs-label" class="pv-fs-label">16px</span>
+              <button class="btn pv-fs-btn" id="btn-pv-fs-up" title="Increase preview font">+</button>
             </span>
-
           </div>
           <div class="preview-pane-body" id="preview-pane-body"></div>
           <!-- Ignore words panel — inside preview pane -->
@@ -288,34 +287,8 @@
             <button class="btn hidden" id="btn-build-preview-edit">✎ Open in Editor</button>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;align-items:start;position:sticky;top:0">
-          <!-- Left sub-column: Metadata top, Images bottom -->
-          <div style="display:flex;flex-direction:column;gap:1rem">
-            <div class="build-card">
-              <div class="build-card-title">Metadata</div>
-              <div class="form-group" style="margin-bottom:0.5rem">
-                <label class="form-label">Author</label>
-                <input class="form-input" type="text" id="build-author" placeholder="Author name" style="font-size:0.82rem">
-              </div>
-              <div class="form-group" style="margin-bottom:0.5rem">
-                <label class="form-label">Language</label>
-                <input class="form-input" type="text" id="build-language" placeholder="ca" style="font-size:0.82rem">
-              </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">Publisher</label>
-                <input class="form-input" type="text" id="build-publisher" placeholder="BonPort" style="font-size:0.82rem">
-              </div>
-            </div>
-            <div class="build-card">
-              <div class="build-card-title">Images</div>
-              <div id="image-list" style="margin:0.4rem 0;display:flex;flex-direction:column;gap:0.3rem;max-height:200px;overflow-y:auto"></div>
-              <label class="btn" style="cursor:pointer;margin-top:0.3rem;text-align:center">
-                ⊕ Upload image
-                <input type="file" id="image-upload-input" accept="image/*" class="hidden">
-              </label>
-            </div>
-          </div>
-          <!-- Right sub-column: Actions top, Footnotes bottom -->
+        <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:start;position:sticky;top:0">
+          <!-- Actions + Footnotes -->
           <div style="display:flex;flex-direction:column;gap:1rem">
             <div class="build-card">
               <div class="build-card-title">Actions</div>
@@ -368,19 +341,60 @@
     <div class="panel" id="panel-overview">
       <div class="panel-header"><span class="panel-title">Project Overview</span></div>
       <div class="panel-body">
-        <div id="overview-status" style="margin-bottom:1.5rem"></div>
-        <div id="overview-info" style="font-family:var(--mono);font-size:0.78rem;line-height:2;color:var(--text2);margin-bottom:2rem"></div>
-        <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
-          <button class="btn danger" id="btn-reset-project">↺ Reset to full.xhtml</button>
-          <button class="btn danger" id="btn-delete-project">✕ Delete project</button>
-        </div>
-        <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)">
-          <button class="btn primary" id="btn-detect-footnotes" disabled>⎆ Detect Footnotes</button>
-          <button class="btn primary" id="btn-inject-footnotes" style="display:none">⚡ Inject Footnotes</button>
-          <div id="overview-footnotes" style="display:none;margin-top:1rem;font-family:var(--mono);font-size:0.75rem;color:var(--text2);line-height:1.8">
-            <span id="overview-footnotes-msg"></span>
-            <div style="margin-top:0.75rem">
-              <button class="btn danger" id="btn-reset-footnotes" style="display:none">↺ Reset footnotes</button>
+        <div class="overview-layout">
+          <!-- Left column: project info + actions -->
+          <div>
+            <div id="overview-status" style="margin-bottom:1.5rem"></div>
+            <div id="overview-info" style="font-family:var(--mono);font-size:0.78rem;line-height:2;color:var(--text2);margin-bottom:2rem"></div>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+              <button class="btn danger" id="btn-reset-project">↺ Reset to full.xhtml</button>
+              <button class="btn danger" id="btn-delete-project">✕ Delete project</button>
+            </div>
+            <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)">
+              <button class="btn primary" id="btn-detect-footnotes" disabled>⎆ Detect Footnotes</button>
+              <button class="btn primary" id="btn-inject-footnotes" style="display:none">⚡ Inject Footnotes</button>
+              <div id="overview-footnotes" style="display:none;margin-top:1rem;font-family:var(--mono);font-size:0.75rem;color:var(--text2);line-height:1.8">
+                <span id="overview-footnotes-msg"></span>
+                <div style="margin-top:0.75rem">
+                  <button class="btn danger" id="btn-reset-footnotes" style="display:none">↺ Reset footnotes</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Metadata -->
+          <div>
+            <div class="build-card" id="overview-metadata">
+              <div class="build-card-title">Metadata</div>
+              <!-- Group 1: OPF fields — always shown -->
+              <div class="form-group" style="margin-bottom:0.5rem">
+                <label class="form-label">Title</label>
+                <input class="form-input" type="text" id="build-title" data-meta-field="title" placeholder="Book title" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin-bottom:0.5rem">
+                <label class="form-label">Author</label>
+                <input class="form-input" type="text" id="build-author" data-meta-field="author" placeholder="Author name" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin-bottom:0.5rem">
+                <label class="form-label">Language</label>
+                <input class="form-input" type="text" id="build-language" data-meta-field="language" placeholder="ca" style="font-size:0.82rem">
+              </div>
+              <div class="form-group" style="margin-bottom:0.5rem">
+                <label class="form-label">Publisher</label>
+                <input class="form-input" type="text" id="build-publisher" data-meta-field="publisher" placeholder="BonPort" style="font-size:0.82rem">
+              </div>
+              <!-- Group 2: dynamic token fields — rendered by loadMetadataPanel() -->
+              <div id="metadata-fields"></div>
+            </div>
+          </div>
+          <!-- Images -->
+          <div>
+            <div class="build-card">
+              <div class="build-card-title">Images</div>
+              <div id="image-list" style="margin:0.4rem 0;display:flex;flex-direction:column;gap:0.3rem;max-height:200px;overflow-y:auto"></div>
+              <label class="btn" style="cursor:pointer;margin-top:0.3rem;text-align:center">
+                ⊕ Upload image
+                <input type="file" id="image-upload-input" accept="image/*" multiple class="hidden">
+              </label>
             </div>
           </div>
         </div>

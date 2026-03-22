@@ -85,12 +85,21 @@ def _hyphenate_file(filepath, hyph):
         # Strip any existing soft hyphens before hyphenating — makes the
         # operation idempotent (safe to run multiple times on the same file)
         clean_t = t.replace(SOFT_HYPHEN, '')
+
+        # Split around {{TOKEN}} patterns — hyphenate only non-token segments
+        _TOKEN_RE = re.compile(r'(\{\{[A-Z_]+\}\})')
+        segments = _TOKEN_RE.split(clean_t)
         newt = ''
-        for w in _WORD_RE.findall(clean_t):
-            if len(w) < MIN_WORD_LEN or '-' in w:
-                newt += w
+        for seg in segments:
+            if _TOKEN_RE.match(seg):
+                # Token — pass through untouched
+                newt += seg
             else:
-                newt += hyph.inserted(w).replace('-', SOFT_HYPHEN)
+                for w in _WORD_RE.findall(seg):
+                    if len(w) < MIN_WORD_LEN or '-' in w:
+                        newt += w
+                    else:
+                        newt += hyph.inserted(w).replace('-', SOFT_HYPHEN)
         if t.is_text:
             parent.text = newt
         elif t.is_tail:

@@ -8,8 +8,7 @@ async function checkExistingChapters() {
     const banner = document.getElementById('split-existing-banner');
     if (existingChapters.length) {
       banner.style.display = '';
-      banner.innerHTML = `<span>⚠ ${existingChapters.length} chapter file${existingChapters.length !== 1 ? 's' : ''} already exist — applying new splits will replace them.</span>
-        <button class="btn danger" style="padding:0.2rem 0.6rem;font-size:0.72rem" onclick="deleteAllChapterFiles()">✕ Delete chapter files</button>`;
+      banner.innerHTML = `<span>⚠ ${existingChapters.length} chapter file${existingChapters.length !== 1 ? 's' : ''} already exist — applying new splits will replace them.</span>`;
     } else {
       banner.style.display = 'none';
       banner.innerHTML = '';
@@ -85,6 +84,19 @@ async function loadFullXhtml() {
       if (el) _insertMarkerDOM(d.beforeIndex, el, d.type, d.name);
     });
 
+    // If no editable markers and chapters on disk have before_index, insert readonly markers
+    if (!splitMarkers.length) {
+      const chapters = currentProject?.chapters || [];
+      const hasPositions = chapters.some(c => c.before_index !== undefined);
+      if (hasPositions) {
+        chapters.forEach(ch => {
+          if (ch.before_index === undefined) return;
+          const el = splitElements[ch.before_index];
+          if (el) _insertMarkerDOM(ch.before_index, el, ch.type, ch.name, true);
+        });
+      }
+    }
+
     // Auto-populate class input from first h1 found (wrapper class takes priority)
     try {
       const classInput = document.getElementById('auto-classes');
@@ -109,7 +121,7 @@ async function loadFullXhtml() {
   }
 }
 
-function _insertMarkerDOM(beforeIndex, wrapperEl, type, name) {
+function _insertMarkerDOM(beforeIndex, wrapperEl, type, name, readOnly = false) {
   const marker = document.createElement('div');
   marker.className = 'split-marker';
   marker.draggable = true;
@@ -130,20 +142,26 @@ function _insertMarkerDOM(beforeIndex, wrapperEl, type, name) {
   wrapperEl.parentNode.insertBefore(marker, wrapperEl);
   marker.querySelector('.marker-type').value = type || 'chapter';
   marker.querySelector('.marker-name').value = name || '';
-  const obj = { beforeIndex, marker };
+  const obj = { beforeIndex, marker, readOnly };
   splitMarkers.push(obj);
-  marker.addEventListener('dragstart', e => { _draggedMarker = obj; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => marker.style.opacity = '0.4', 0); });
-  marker.addEventListener('dragend',   () => { marker.style.opacity = ''; _draggedMarker = null; });
-  marker.querySelector('.split-marker-del').addEventListener('click', e => {
-    e.stopPropagation();
-    marker.remove();
-    splitMarkers = splitMarkers.filter(m => m !== obj);
-    splitSavedData = splitSavedData.filter(d => d.beforeIndex !== beforeIndex);
-    if (currentProject) localStorage.setItem('splits:' + currentProject.id, JSON.stringify(splitSavedData));
-    updateSplitList();
-  });
-  marker.querySelector('.marker-type').addEventListener('change', () => syncSavedData());
-  marker.querySelector('.marker-name').addEventListener('input',  () => syncSavedData());
+
+  if (readOnly) {
+    marker.classList.add('split-marker--readonly');
+    marker.draggable = false;
+  } else {
+    marker.addEventListener('dragstart', e => { _draggedMarker = obj; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => marker.style.opacity = '0.4', 0); });
+    marker.addEventListener('dragend',   () => { marker.style.opacity = ''; _draggedMarker = null; });
+    marker.querySelector('.split-marker-del').addEventListener('click', e => {
+      e.stopPropagation();
+      marker.remove();
+      splitMarkers = splitMarkers.filter(m => m !== obj);
+      splitSavedData = splitSavedData.filter(d => d.beforeIndex !== beforeIndex);
+      if (currentProject) localStorage.setItem('splits:' + currentProject.id, JSON.stringify(splitSavedData));
+      updateSplitList();
+    });
+    marker.querySelector('.marker-type').addEventListener('change', () => syncSavedData());
+    marker.querySelector('.marker-name').addEventListener('input',  () => syncSavedData());
+  }
   updateSplitList();
   return obj;
 }
@@ -167,10 +185,32 @@ function addSplitMarker(beforeIndex, wrapperEl) {
 }
 
 function updateSplitList() {
-  const list = document.getElementById('split-list');
-  document.getElementById('split-count').textContent = splitMarkers.length;
+  const list      = document.getElementById('split-list');
+  const head      = document.getElementById('split-list-head');
+  const countEl   = document.getElementById('split-count');
+  const applyBtn  = document.getElementById('btn-apply-splits');
+  const clearBtn  = document.getElementById('btn-clear-splits');
+  const deleteBtn = document.getElementById('btn-delete-chapters');
+
+  const hasReadOnly  = splitMarkers.some(m => m.readOnly);
+  const hasEditable  = splitMarkers.some(m => !m.readOnly);
+  const chaptersMode = hasReadOnly && !hasEditable;
+
+  countEl.textContent = splitMarkers.length;
+
+  // Update header label
+  if (head) head.innerHTML = chaptersMode
+    ? `Chapters on disk — <span id="split-count">${splitMarkers.length}</span>`
+    : `Split points — <span id="split-count">${splitMarkers.length}</span>`;
+
+  // Show/hide buttons based on state
+  if (applyBtn)  applyBtn.classList.toggle('hidden', chaptersMode);
+  if (clearBtn)  clearBtn.classList.toggle('hidden', chaptersMode);
+  if (deleteBtn) deleteBtn.classList.toggle('hidden', !chaptersMode);
+
   if (!splitMarkers.length) {
-    list.innerHTML = '<div class="split-list-empty">No splits yet.<br>Click in the text to add one.</div>'; return;
+    list.innerHTML = '<div class="split-list-empty">No splits yet.<br>Click in the text to add one.</div>';
+    return;
   }
   const sorted = [...splitMarkers].sort((a,b) => a.beforeIndex - b.beforeIndex);
   list.innerHTML = '';
@@ -180,7 +220,11 @@ function updateSplitList() {
     const el   = document.createElement('div');
     el.className = 'split-list-item';
     el.style.cursor = 'pointer';
-    el.innerHTML = `<span class="sli-type">${type}</span>${escHtml(name)}`;
+    if (m.readOnly) {
+      el.innerHTML = `<span class="sli-applied">✓ ${type}</span>${escHtml(name)}`;
+    } else {
+      el.innerHTML = `<span class="sli-type">${type}</span>${escHtml(name)}`;
+    }
     el.addEventListener('click', () => m.marker.scrollIntoView({ behavior: 'smooth', block: 'center' }));
     list.appendChild(el);
   });
@@ -260,13 +304,25 @@ async function deleteAllChapterFiles() {
     }
     banner.style.display = 'none';
     banner.innerHTML = '';
+    if (currentProject) currentProject.chapters = [];
     buildConfig = null; // force Build panel to reload
     loadBuildConfig();
+    // Clear readonly markers from DOM and state
+    splitMarkers.forEach(m => m.marker.remove());
+    splitMarkers = [];
+    updateSplitList();    
   } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }
 }
 
 async function applySplits() {
   if (!splitMarkers.length) { showStatus('split-status', 'Add at least one split point first', 'err'); return; }
+  // Warn if chapters exist on disk and user hasn't already seen readonly markers
+  const existingCount = (currentProject?.chapters || []).length;
+  const alreadyShowingReadonly = splitMarkers.some(m => m.readOnly);
+  if (existingCount && !alreadyShowingReadonly) {
+    const ok = confirm(`${existingCount} chapter file${existingCount !== 1 ? 's' : ''} already exist and will be replaced.\n\nContinue?`);
+    if (!ok) return;
+  }
   const sorted = [...splitMarkers].sort((a,b) => a.beforeIndex - b.beforeIndex);
   const splits = sorted.map((m, i) => {
     const type = m.marker.querySelector('.marker-type').value;
@@ -281,10 +337,17 @@ async function applySplits() {
   showStatus('split-status', 'Generating chapter files…', 'info');
   try {
     const data = await apiFetch('POST', `/projects/${currentProject.id}/split`, { splits });
-    showStatus('split-status', `✓ ${data.saved.length} files created`, 'ok');
+    showStatus('split-status', `\u2713 ${data.saved.length} files created`, 'ok');
     currentProject.status = 'split'; currentProject.chapters = data.saved;
     buildConfig = null; // force Build panel to reload
-    clearAllSplits();
+    // Replace editable markers with readonly ones from saved chapters
+    splitMarkers.forEach(m => m.marker.remove());
+    splitMarkers = []; splitSavedData = [];
+    if (currentProject) localStorage.removeItem('splits:' + currentProject.id);
+    data.saved.filter(c => c.before_index !== undefined).forEach(ch => {
+      const el = splitElements[ch.before_index];
+      if (el) _insertMarkerDOM(ch.before_index, el, ch.type, ch.name, true);
+    });
     await checkExistingChapters();
   } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }
   finally { btn.disabled = false; btn.textContent = '✂ Apply splits'; }

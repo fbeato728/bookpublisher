@@ -764,6 +764,13 @@ async function saveChapter() {
   // const xhtml = serializeToXhtml();
   const xhtml = monacoEditor ? monacoEditor.getValue() : '';
   if (!xhtml) { setEditorStatus('No content to save', 'err'); return; }
+
+  // Visual feedback — invert Save button colours for 500ms
+  const saveBtn = document.getElementById('btn-save-chapter');
+  if (saveBtn) {
+    saveBtn.classList.add('btn-saving');
+    setTimeout(() => saveBtn.classList.remove('btn-saving'), 500);
+  }
   
   const isChapter = /^\d{4}_/.test(currentChapterFile);
   const isCss     = currentChapterFile.endsWith('.css');
