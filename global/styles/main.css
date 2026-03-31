@@ -1,25 +1,4 @@
 @charset "utf-8";
-/* @font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Italic.ttf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: normal;
-  font-style: italic;
-  font-stretch: normal;
-}
-@font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Regular.ttf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: normal;
-  font-style: normal;
-  font-stretch: normal;
-}
-@font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Semibold.otf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: 600;
-  font-style: normal;
-  font-stretch: normal;
-} */
 
 /* ── Base reset ─────────────────────────────────────────────────────────────── */
 /* All font/text properties below inherit from body — classes only override what differs */
@@ -177,7 +156,7 @@ sup { vertical-align: 33%;  font-size: 67%; }
 .chapterSubtitle {
   padding: 0;
   margin: 0;
-  font-size: 90%;
+  font-size: 91%;
   text-align: center;
   text-indent: 0;
   line-height: 1.3em;
@@ -195,7 +174,7 @@ sup { vertical-align: 33%;  font-size: 67%; }
   font-style: normal;
   font-weight: 600;
   font-stretch: normal;
-  font-size: 1.5em;
+  font-size: {{CHAPTER_NUM_FONT_SIZE}};
   font-family: "Adobe Garamond Pro", serif;
   color: #000;
   letter-spacing: 0;
@@ -221,18 +200,18 @@ sup { vertical-align: 33%;  font-size: 67%; }
   padding-bottom: 0%;
   font-style: normal;
   font-weight: 400;
-  font-size: 1em;
+  /* font-size: 1em; */
   font-family: "Adobe Garamond Pro", serif;
   color: #000;
-  letter-spacing: 0;
   font-variant: normal;
   text-transform: none;
   white-space: normal;
   text-align: justify;
   widows: 2;
   orphans: 2;
-  text-indent: 1.3em;
-  line-height: 1.3em;
+  text-indent: {{BODY_TEXT_INDENT}};
+  line-height: {{BODY_LINE_HEIGHT}};
+  letter-spacing: 0;
   /*hyphens: auto;*/
   -webkit-hyphens: none;
   -webkit-text-stroke-color: initial;
@@ -488,7 +467,7 @@ sup { vertical-align: 33%;  font-size: 67%; }
 .c6         { font-variant: small-caps; font-weight: 400; }
 
 /* ── Section wrappers ────────────────────────────────────────────────────────── */
-.body     { width: 100%; }
+.insideCoverPrint     { width: 100%; }
 .qSection { margin: 0 auto; width: 88%; padding: 1% 0; }
 
 /* ── Text decoration utilities ───────────────────────────────────────────────── */

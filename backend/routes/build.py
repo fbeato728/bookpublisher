@@ -21,6 +21,33 @@ GLOBAL_CONFIG = os.path.join(GLOBAL_DIR, 'config')
 GLOBAL_JSON   = os.path.join(GLOBAL_CONFIG, 'global.json')
 TOKENS_PATH   = os.path.join(GLOBAL_CONFIG, 'tokens.json')
 BUILD_JSON    = os.path.join(GLOBAL_CONFIG, 'build.json')
+CSS_TOKENS_GLOBAL = os.path.join(GLOBAL_CONFIG, 'css_tokens.json')
+
+def _load_css_tokens(project_id):
+    """Return merged CSS tokens: global defaults + project overrides.
+    global/config/css_tokens.json has a nested structure — tokens live
+    under the 'tokens' key, not at the top level."""
+    tokens = {}
+    if os.path.exists(CSS_TOKENS_GLOBAL):
+        with open(CSS_TOKENS_GLOBAL, encoding='utf-8') as f:
+            global_cfg = json.load(f)
+        # Support both flat (legacy) and nested {'tokens': {...}} format
+        token_defs = global_cfg.get('tokens', global_cfg)
+        for token, cfg in token_defs.items():
+            if isinstance(cfg, dict):
+                tokens[token] = cfg.get('default', '')
+    project_path = os.path.join(PROJECTS_DIR, project_id, 'css_tokens.json')
+    if os.path.exists(project_path):
+        with open(project_path, encoding='utf-8') as f:
+            tokens.update(json.load(f))
+    return tokens
+
+def _fill_css_tokens(content, tokens):
+    """Substitute {{TOKEN}} in CSS content with token values."""
+    for token, value in tokens.items():
+        content = content.replace(token, value)
+    return content
+
 
 # ── XHTML templates ───────────────────────────────────────────────────────────
 BLANK_XHTML = """<?xml version='1.0' encoding='UTF-8'?>
@@ -264,7 +291,7 @@ def _transform_footnote_markers(content, fn_map, chapter_filename, profile, patt
             replacement = tpl.replace('{NNNN}', nnnn).replace('{N}', str(display_num))
         elif profile == 'print':
             tpl = patterns['print']['inline']
-            replacement = tpl.replace('{N}', str(display_num)).replace('{CONTENT}', _esc(content_text))
+            replacement = tpl.replace('{N}', str(display_num)).replace('{CONTENT}', _esc_content(content_text))
         else:
             continue
         print(f"DEBUG: {profile} replacement = {replacement}", flush=True)
@@ -285,7 +312,7 @@ def _build_footnotes_xhtml(entries, title, patterns):
         entry = (entry_tpl
                  .replace('{NNNN}',    e['nnnn'])
                  .replace('{N}',       str(e['display_num']))
-                 .replace('{CONTENT}', _esc(e['content']))
+                 .replace('{CONTENT}', _esc_content(e['content']))
                  .replace('{CHAPTER}', e['chapter_base']))
         parts.append(entry)
     parts.append(foot)
@@ -981,10 +1008,13 @@ def build_epub(project_id, profile):
                 zf.writestr(f'OEBPS/{path}', content.encode('utf-8'))
             else:
                 zf.writestr(f'OEBPS/{path}', content)
-        # CSS files (original names, no mapping)
+        # CSS files — apply CSS token substitution before writing
+        _css_tokens = _load_css_tokens(project_id)
         for css, src_path in styles_needed.items():
-            with open(src_path, 'rb') as f:
-                zf.writestr(f'OEBPS/styles/{css}', f.read())
+            with open(src_path, 'r', encoding='utf-8') as f:
+                css_content = f.read()
+            css_content = _fill_css_tokens(css_content, _css_tokens)
+            zf.writestr(f'OEBPS/styles/{css}', css_content.encode('utf-8'))
         # Font files
         for font, src_path in sorted(fonts_needed.items()):
             with open(src_path, 'rb') as f:
@@ -1054,3 +1084,7 @@ def _container_xml():
 def _esc(s):
     """XML escape helper."""
     return str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+
+def _esc_content(s):
+    """XML escape for footnote content — allows <em> and <strong> tags through."""
+    return str(s).replace('&','&amp;').replace('"','&quot;')

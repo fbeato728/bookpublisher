@@ -498,6 +498,7 @@ function renderImageList(images, covers) {
       <button class="image-cover-btn ${isPrintInside ? 'is-print' : ''}"
         title="${isPrintInside ? 'Print inside cover (click to unset)' : 'Set as print inside cover'}"
         onclick="setCoverImage('${filename}', 'print_inside_cover', ${isPrintInside})">P</button>
+      <button class="image-cover-btn" title="Copy path" onclick="navigator.clipboard.writeText('../images/${filename}')">C</button>
       <button class="image-del-btn" title="Delete" onclick="deleteImage('${filename}')">✕</button>
     `;
     list.appendChild(row);
@@ -519,12 +520,14 @@ async function uploadImage(input) {
 async function deleteImage(filename) {
   if (!confirm(`Delete ${filename}?`)) return;
   try { await apiFetch('DELETE', `/projects/${currentProject.id}/images/${filename}`); } catch {}
+  Object.keys(currentProject).forEach(k => { if (currentProject[k] === filename) currentProject[k] = null; });
   loadImageList();
 }
 
 async function setCoverImage(filename, field, isAlreadySet) {
   const newVal = isAlreadySet ? null : filename;
   try { await apiFetch('PUT', `/projects/${currentProject.id}/cover-image`, { filename: newVal, field }); } catch {}
+  currentProject[field] = newVal;
   loadImageList();
 }
 

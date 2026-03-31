@@ -29,15 +29,7 @@
     display: block !important;
   }
 
-/* .creditsBody {
-  position: relative; min-height: 100%;}
-
-  .copyright-block {
-  position: absolute;
-  bottom: 0em;
-  left: 0em;
-} */
-
+.insideCoverDigital {display: none !important;}
 .creditsBody {
   position: relative;
   height: 100vh;
@@ -70,7 +62,7 @@
   left: 50%;
   right: auto;
   top: auto;
-  bottom: 17em;
+  bottom: {{TITLE_BOTTOM}};
   transform: translateX(-50%);
 
   margin: 0;
@@ -81,7 +73,7 @@
 
   .chapterNumberBlock {
     padding-left: 0;
-    padding-top: 0;
+    padding-top: {{CHAPTER_TOP_PADDING}};
     padding-bottom: 1em;
   }
 

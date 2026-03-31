@@ -108,7 +108,7 @@
         <div class="split-sidebar">
           <div class="split-sidebar-tabs">
             <button class="split-tab active" id="btn-split-tab-splits">✂ Splits</button>
-            <button class="split-tab" id="btn-split-tab-footnotes">fn Footnotes</button>
+            <button class="split-tab" id="btn-split-tab-footnotes">Footnotes</button>
           </div>
           <!-- Splits view -->
           <div id="split-view" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
@@ -136,7 +136,10 @@
           </div>
           <!-- Footnotes review view -->
           <div id="footnotes-view" style="display:none;flex-direction:column;flex:1;overflow:hidden">
-            <div class="split-sidebar-head">Footnotes</div>
+            <div class="split-sidebar-head" style="display:flex;align-items:center;justify-content:space-between">
+              <span>Footnotes</span>
+              <button id="btn-fn-issues" style="display:none;font-family:var(--mono);font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:3px;border:1px solid var(--border);cursor:pointer;opacity:0.4;background:transparent;color:var(--text2)" title="Show only footnotes with issues">Issues</button>
+            </div>
             <div id="footnotes-review-list" style="flex:1;overflow-y:auto;padding:0.5rem 0">
               <div class="split-list-empty">No footnotes detected.<br>Run detection in Overview first.</div>
             </div>
@@ -189,6 +192,7 @@
             <button class="btn lt-only" id="btn-preview-file" style="display:none" onclick="togglePreviewPane()" title="Toggle preview pane">👁 Preview</button>
             -->
           </div>
+          <div id="css-token-strip" style="display:none"></div>
           <div class="editor-content-area">
             <div class="editor-scroll active" id="editor-scroll">
               <div id="editor-content" contenteditable="true" spellcheck="false"
@@ -355,6 +359,9 @@
               <button class="btn primary" id="btn-inject-footnotes" style="display:none">⚡ Inject Footnotes</button>
               <div id="overview-footnotes" style="display:none;margin-top:1rem;font-family:var(--mono);font-size:0.75rem;color:var(--text2);line-height:1.8">
                 <span id="overview-footnotes-msg"></span>
+                <div style="margin-top:0.4rem">
+                  <span id="overview-footnotes-audit" style="display:none;font-size:0.72rem"></span>
+                </div>
                 <div style="margin-top:0.75rem">
                   <button class="btn danger" id="btn-reset-footnotes" style="display:none">↺ Reset footnotes</button>
                 </div>
@@ -384,6 +391,13 @@
               </div>
               <!-- Group 2: dynamic token fields — rendered by loadMetadataPanel() -->
               <div id="metadata-fields"></div>
+            </div>
+          </div>
+          <!-- CSS Tokens -->
+          <div>
+            <div class="build-card" id="overview-css-tokens">
+              <div class="build-card-title">CSS Tokens</div>
+              <div id="css-token-fields"></div>
             </div>
           </div>
           <!-- Images -->
@@ -460,7 +474,7 @@
                 <input class="form-input" id="pdf-font-size" type="text" placeholder="12pt" style="font-size:0.82rem">
               </div>
               <div class="form-group" style="margin:0">
-                <label class="form-label">Page counter offset</label>
+                <label class="form-label">Page cntr offset</label>
                 <input class="form-input" id="pdf-counter-offset" type="number" placeholder="-2" style="font-size:0.82rem">
               </div>
               <div class="form-group" style="margin:0;grid-column:1/-1">

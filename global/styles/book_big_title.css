@@ -1,18 +1,5 @@
 @charset "utf-8";
-/* @font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Regular.ttf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: normal;
-  font-style: normal;
-  font-stretch: normal;
-}
-@font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Italic.ttf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: normal;
-  font-style: italic;
-  font-stretch: normal;
-} */
+
 body.titlepage {
   margin: 0;
 }
@@ -25,7 +12,7 @@ body.titlepage {
 p._NORMAL---title {
   color: #000;
   font-family: "Adobe Garamond Pro", serif;
-  font-size: 1.6em;
+  font-size: {{TITLE_FONT_SIZE}};
   font-style: normal;
   font-variant: normal;
   font-weight: normal;

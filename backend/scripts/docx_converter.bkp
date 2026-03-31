@@ -63,73 +63,28 @@ def get_heading_map():
     return CONFIG['heading_map']
 
 
-# XML namespaces for tracked changes
-_W_NS  = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-_W_INS = f'{{{_W_NS}}}ins'
-_W_DEL = f'{{{_W_NS}}}del'
-_W_R   = f'{{{_W_NS}}}r'
-_W_T   = f'{{{_W_NS}}}t'
-
-
-def _get_runs_accepting_changes(para):
-    """Yield run objects including inserted text, skipping deleted text.
-
-    Tracked changes in DOCX are stored as <w:ins> and <w:del> wrappers around
-    <w:r> run elements. python-docx's para.runs only yields clean runs and
-    silently drops both. This function yields all runs that should appear in
-    the final accepted document:
-    - Normal <w:r> runs
-    - <w:r> runs inside <w:ins> (accepted insertions)
-    - Skips <w:r> runs inside <w:del> (rejected deletions)
-    """
-    from docx.oxml.ns import qn
-    from docx.text.run import Run
-
-    for child in para._element:
-        tag = child.tag
-        if tag == _W_R:
-            yield Run(child, para)
-        elif tag == _W_INS:
-            # Accept insertion — yield all runs inside
-            for r_el in child.iter(_W_R):
-                yield Run(r_el, para)
-        elif tag == _W_DEL:
-            # Reject deletion — skip entirely
-            pass
-
-
-def _wrap_inline(tag, text):
-    """Wrap text in inline tag, moving leading/trailing spaces outside."""
-    leading  = len(text) - len(text.lstrip(' '))
-    trailing = len(text) - len(text.rstrip(' '))
-    inner    = text[leading:len(text)-trailing] if trailing else text[leading:]
-    return ' ' * leading + f'<{tag}>{inner}</{tag}>' + ' ' * trailing
-
-
 def convert_runs(para, images_dir=None):
     """
     Convert paragraph runs to HTML, handling text formatting and inline images.
     If images_dir is None, images are skipped.
-    Accepts all tracked changes (insertions included, deletions skipped).
-    Normalizes leading/trailing spaces outside inline tags.
     """
     images_cfg = CONFIG['images']
     paths_cfg = CONFIG['paths']
     msg_cfg = CONFIG['messages']['errors']
     
     result = ''
-    for r in _get_runs_accepting_changes(para):
+    for r in para.runs:
         text = r.text
         if text:
             text = escape_xml(text)
             
-            # Apply formatting — normalize spaces outside inline tags
+            # Apply formatting
             if r.italic and r.bold:
-                text = _wrap_inline('b', _wrap_inline('i', text))
+                text = f"<i><b>{text}</b></i>"
             elif r.italic:
-                text = _wrap_inline('i', text)
+                text = f"<i>{text}</i>"
             elif r.bold:
-                text = _wrap_inline('b', text)
+                text = f"<b>{text}</b>"
             result += text
 
         # Handle inline images if images_dir is provided

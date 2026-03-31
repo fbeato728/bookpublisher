@@ -370,6 +370,7 @@ async function addNewCss() {
   const filename = name.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-') + '.css';
   try {
     await apiFetch('POST', `/projects/${currentProject.id}/styles`, { filename });
+    apiFetch('POST', `/projects/${currentProject.id}/css-tokens/sync`).catch(() => {});
     showStatus('build-action-status', `✓ ${filename} created — open in Editor`, 'ok');
   } catch(e) { showStatus('build-action-status', '✗ ' + e.message, 'err'); }
 }

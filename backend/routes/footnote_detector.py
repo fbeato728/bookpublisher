@@ -215,13 +215,57 @@ def _extract_document_paragraphs(doc_tree) -> List[Dict]:
     return paragraphs_out
 
 
+def _wrap_inline_fn(tag: str, text: str) -> str:
+    """Wrap text in inline tag, moving leading/trailing spaces outside."""
+    leading  = len(text) - len(text.lstrip(' '))
+    trailing = len(text) - len(text.rstrip(' '))
+    inner    = text[leading:len(text) - trailing] if trailing else text[leading:]
+    if not inner:
+        return text  # only spaces — nothing to wrap
+    return ' ' * leading + f'<{tag}>{inner}</{tag}>' + ' ' * trailing
+
+
 def _collect_visible_text_from_word_container(elem) -> str:
+    """Collect visible text from a Word paragraph/container, preserving italic and bold as HTML."""
     parts = []
-    for node in elem.iter():
+    W_R   = f'{{{W_NS}}}r'
+    W_T   = f'{{{W_NS}}}t'
+    W_RPR = f'{{{W_NS}}}rPr'
+    W_I   = f'{{{W_NS}}}i'
+    W_B   = f'{{{W_NS}}}b'
+
+    for node in elem:
         tag = node.tag
-        if tag == f'{{{W_NS}}}t':
-            if node.text:
-                parts.append(node.text)
+
+        if tag == W_R:
+            # Detect formatting from rPr
+            rpr    = node.find(W_RPR)
+            italic = rpr is not None and rpr.find(W_I) is not None
+            bold   = rpr is not None and rpr.find(W_B) is not None
+
+            run_text = ''
+            for child in node.iter():
+                ctag = child.tag
+                if ctag == W_T:
+                    run_text += child.text or ''
+                elif ctag == f'{{{W_NS}}}tab':
+                    run_text += '\t'
+                elif ctag in {f'{{{W_NS}}}br', f'{{{W_NS}}}cr'}:
+                    run_text += '\n'
+                elif ctag == f'{{{W_NS}}}noBreakHyphen':
+                    run_text += '-'
+                elif ctag == f'{{{W_NS}}}softHyphen':
+                    run_text += '\u00AD'
+
+            if run_text:
+                if italic and bold:
+                    run_text = _wrap_inline_fn('strong', _wrap_inline_fn('em', run_text))
+                elif italic:
+                    run_text = _wrap_inline_fn('em', run_text)
+                elif bold:
+                    run_text = _wrap_inline_fn('strong', run_text)
+                parts.append(run_text)
+
         elif tag == f'{{{W_NS}}}tab':
             parts.append('\t')
         elif tag in {f'{{{W_NS}}}br', f'{{{W_NS}}}cr'}:
@@ -230,6 +274,7 @@ def _collect_visible_text_from_word_container(elem) -> str:
             parts.append('-')
         elif tag == f'{{{W_NS}}}softHyphen':
             parts.append('\u00AD')
+
     return ''.join(parts)
 
 

@@ -11,42 +11,16 @@ body, div, dl, dt, dd, h1, h2, h3, h4, h5, h6, p, pre, code, blockquote {
 p.credits {
   color: #000;
   font-family: "Adobe Garamond Pro", serif;
-  font-size: 0.7em;
+  font-size: {{CREDITS_FONT_SIZE}};
   line-height: 1.2em;
   margin: 0;
   text-align: left;
   text-indent: 0; /* This removes the indent you didn't want */
 }
 
-
-/* ── Layout / image ──────────────────────────────────────────────────────────── */
-/*div.inline {
-  page-break-inside: avoid;
-  margin: 0.5em 0;
-  text-indent: 0;
-  text-align: center;
-  clear: both;
-}*/
-
-/* img.kLogo {
-  height: 3em;
-  width: auto;
-  display: block;
-  padding-left: 4em;
-  padding-top: -1em;
-  padding-bottom: 1em;
-} */
-
-/* img.kLogo {
-  height: 12mm; 
-  width: auto;
-  display: block;
-  padding-left: 4em;
-} */
-
 img.kLogo {
   /* This forces the height to 3em regardless of the file's raw pixels */
-  height: 2.5em !important;
+  height: {{LOGO_HEIGHT}} !important;
   width: auto !important;
   
   /* These two lines are critical for PDF/ePub engines */
@@ -54,7 +28,7 @@ img.kLogo {
   object-fit: contain;
   
   display: block;
-  padding-left: 4em;
+  padding-left: {{LOGO_PADDING_LEFT}};
 }
 
 div._section {

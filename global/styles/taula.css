@@ -41,17 +41,17 @@ ul.leaders a.tocitem::after {
   margin-left: auto;
   margin-right: auto;
 }
-.chapterNumber {
+.taulaTitle {
   padding-left: 0;
   margin-top: 0;
-  padding-top: 15%;
+
   padding-right: 0;
   margin-bottom: 2%;
   padding-bottom: 0;
   font-style: normal;
   font-weight: 700;
   font-stretch: normal;
-  font-size: 110%;
+  font-size: {{TABLE_TITLE_FONT_SIZE}};
   font-family: "Adobe Garamond Pro", serif;
   color: #000;
   letter-spacing: 0;
@@ -66,3 +66,9 @@ ul.leaders a.tocitem::after {
   -webkit-text-stroke-width: initial;
   text-shadow: none;
 }
+
+  .taulaBody {
+    padding-left: 0;
+  padding-top: {{TABLE_TOP_PADDING}};
+    padding-bottom: 1em;
+  }

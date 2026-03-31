@@ -7,6 +7,9 @@ footnotes_bp = Blueprint('footnotes', __name__)
 
 from config import PROJECTS_DIR
 from routes.footnote_detector import detect_footnotes, match_footnotes, inject_footnotes
+from .utils import _restore_explicit_close
+
+XHTML_NS = 'http://www.w3.org/1999/xhtml'
 
 
 def _footnotes_path(project_id):
@@ -147,6 +150,97 @@ def get_footnotes_map(project_id):
     return jsonify(data)
 
 
+_PUNCT_AFTER_MARKER = set('.,;:!?»\u201d\u2019\u0022\u0027')
+_FN_MARKER_RE       = re.compile(r'\[\[FN:([^\]]+)\]\]')
+
+def _check_punctuation_xhtml(project_dir):
+    """Check fn-marker spans in full.xhtml — return {fn_id: char} for markers followed by punctuation."""
+    from lxml import etree
+    xhtml_path = os.path.join(project_dir, 'xhtml', 'full.xhtml')
+    if not os.path.exists(xhtml_path):
+        return {}
+    parser = etree.XMLParser(recover=True, encoding='utf-8')
+    with open(xhtml_path, 'rb') as f:
+        tree = etree.parse(f, parser)
+    result = {}
+    for span in tree.iter(f'{{{XHTML_NS}}}span'):
+        if span.get('class') != 'fn-marker':
+            continue
+        fn_id = span.get('data-fn')
+        tail  = span.tail or ''
+        if tail and tail[0] in _PUNCT_AFTER_MARKER:
+            result[fn_id] = tail[0]
+    return result
+
+@footnotes_bp.route('/api/projects/<project_id>/footnotes/audit', methods=['GET'])
+def audit_footnotes(project_id):
+    """Run editorial checks on footnotes_map.json and return a list of issues."""
+    project_dir = os.path.join(PROJECTS_DIR, project_id)
+    fn_map_path = os.path.join(project_dir, 'footnotes_map.json')
+    if not os.path.exists(fn_map_path):
+        return jsonify({'error': 'No footnotes map found'}), 404
+
+    with open(fn_map_path, encoding='utf-8') as f:
+        fn_map = json.load(f)
+
+    footnotes        = fn_map.get('footnotes', [])
+    matches          = fn_map.get('paragraph_matches', [])
+    footnotes_injected = fn_map.get('footnotes_injected', False)
+
+    # Build lookup: fn_id → docx_text_with_markers (for pre-injection punctuation check)
+    marker_text = {}
+    for m in matches:
+        for ref in m.get('references', []):
+            marker_text[ref['id']] = m.get('docx_text_with_markers', '')
+
+    # Punctuation check: post-injection uses XHTML spans, pre-injection uses map text
+    if footnotes_injected:
+        punct_issues = _check_punctuation_xhtml(project_dir)  # {fn_id: char}
+    else:
+        punct_issues = {}
+
+    issues = []
+    for fn in footnotes:
+        dn      = fn.get('display_num')
+        fn_id   = fn.get('id')
+        content = fn.get('content', '')
+
+        # 1 — empty content
+        if not content or not content.strip():
+            issues.append({'display_num': dn, 'type': 'empty_content',
+                           'detail': 'Footnote content is empty'})
+
+        # 2 — unmatched
+        if 'matched_xhtml_index' not in fn:
+            issues.append({'display_num': dn, 'type': 'unmatched',
+                           'detail': 'No paragraph match found'})
+            continue  # no point checking score/punctuation if unmatched
+
+        # 3 — low confidence
+        score = fn.get('matched_score', 1.0)
+        if score < 0.7:
+            issues.append({'display_num': dn, 'type': 'low_confidence',
+                           'detail': f'Match score {score:.2f}'})
+
+        # 4 — marker before punctuation
+        if footnotes_injected:
+            if fn_id in punct_issues:
+                issues.append({'display_num': dn, 'type': 'punctuation',
+                               'detail': f"Marker precedes '{punct_issues[fn_id]}'"})
+        else:
+            text = marker_text.get(fn_id, '')
+            if text:
+                marker_tag = f'[[FN:{fn_id}]]'
+                idx = text.find(marker_tag)
+                if idx != -1:
+                    after_idx = idx + len(marker_tag)
+                    if after_idx < len(text) and text[after_idx] in _PUNCT_AFTER_MARKER:
+                        issues.append({'display_num': dn, 'type': 'punctuation',
+                                       'detail': f"Marker precedes '{text[after_idx]}'"})
+
+    return jsonify({'issues': issues, 'total_issues': len(issues)})
+
+
 @footnotes_bp.route('/api/projects/<project_id>/footnotes/map', methods=['DELETE'])
 def delete_footnotes_map(project_id):
     """Delete footnotes_map.json and restore full_original.xhtml if injection was done."""
@@ -246,7 +340,9 @@ def delete_footnote(project_id, display_num):
                 if sid in id_to_new_display:
                     span.set('data-display', str(id_to_new_display[sid]))
 
-        tree.write(xhtml_path, encoding='utf-8', xml_declaration=True, pretty_print=True)
+        raw = etree.tostring(tree, xml_declaration=True, pretty_print=True, encoding='UTF-8')
+        with open(xhtml_path, 'wb') as _f:
+            _f.write(_restore_explicit_close(raw))
 
     fn_map['total'] = len(fn_map['footnotes'])
     fn_map['total_footnote_matches'] = sum(1 for fn in fn_map['footnotes'] if 'matched_xhtml_index' in fn)
@@ -367,6 +463,76 @@ def _inject_span_at_offset(root, xhtml_index, char_offset, fn_id, display_num):
     return True
 
 
+@footnotes_bp.route('/api/projects/<project_id>/footnotes/<int:display_num>/position', methods=['PATCH'])
+def move_footnote(project_id, display_num):
+    """Move a footnote marker to a new position in full.xhtml."""
+    from lxml import etree
+    project_dir = os.path.join(PROJECTS_DIR, project_id)
+    fn_map_path = os.path.join(project_dir, 'footnotes_map.json')
+    xhtml_path  = os.path.join(project_dir, 'xhtml', 'full.xhtml')
+
+    if not os.path.exists(fn_map_path):
+        return jsonify({'error': 'No footnotes map found'}), 404
+    if not os.path.exists(xhtml_path):
+        return jsonify({'error': 'full.xhtml not found'}), 404
+
+    data        = request.json or {}
+    xhtml_index = data.get('xhtml_index')
+    char_offset = data.get('char_offset')
+    if xhtml_index is None or char_offset is None:
+        return jsonify({'error': 'xhtml_index and char_offset are required'}), 400
+
+    with open(fn_map_path, encoding='utf-8') as f:
+        fn_map = json.load(f)
+
+    # Find footnote entry by display_num
+    fn = next((f for f in fn_map.get('footnotes', []) if f.get('display_num') == display_num), None)
+    if not fn:
+        return jsonify({'error': f'Footnote #{display_num} not found'}), 404
+
+    fn_id = fn['id']
+
+    # Parse XHTML
+    parser = etree.XMLParser(recover=True, encoding='utf-8')
+    with open(xhtml_path, 'rb') as f:
+        tree = etree.parse(f, parser)
+    root = tree.getroot()
+
+    # Remove existing span
+    for span in root.iter(f'{{{XHTML_NS}}}span'):
+        if span.get('class') == 'fn-marker' and span.get('data-fn') == str(fn_id):
+            parent = span.getparent()
+            # Merge tail back into previous sibling or parent text
+            tail = span.tail or ''
+            idx  = list(parent).index(span)
+            if idx > 0:
+                prev = parent[idx - 1]
+                prev.tail = (prev.tail or '') + tail
+            else:
+                parent.text = (parent.text or '') + tail
+            parent.remove(span)
+            break
+
+    # Re-inject at new position
+    ok = _inject_span_at_offset(root, xhtml_index, char_offset, fn_id, fn['display_num'])
+    if not ok:
+        return jsonify({'error': 'Could not inject at given position'}), 400
+
+    # Write full.xhtml
+    raw = etree.tostring(tree, xml_declaration=True, pretty_print=True, encoding='UTF-8')
+    with open(xhtml_path, 'wb') as f:
+        f.write(_restore_explicit_close(raw))
+
+    # Update map
+    fn['matched_xhtml_index'] = xhtml_index
+    fn['matched_score']       = 1.0
+
+    with open(fn_map_path, 'w', encoding='utf-8') as f:
+        json.dump(fn_map, f, ensure_ascii=False, indent=2)
+
+    return jsonify({'ok': True})
+
+
 @footnotes_bp.route('/api/projects/<project_id>/footnotes/add', methods=['POST'])
 def add_footnote(project_id):
     """Add a new footnote at a precise position in full.xhtml."""
@@ -442,7 +608,9 @@ def add_footnote(project_id):
             if sid in id_to_display:
                 span.set('data-display', str(id_to_display[sid]))
 
-    tree.write(xhtml_path, encoding='utf-8', xml_declaration=True, pretty_print=True)
+    raw = etree.tostring(tree, xml_declaration=True, pretty_print=True, encoding='UTF-8')
+    with open(xhtml_path, 'wb') as _f:
+        _f.write(_restore_explicit_close(raw))
 
     fn_map['total'] = len(fn_map['footnotes'])
     fn_map['total_footnote_matches'] = sum(1 for fn in fn_map['footnotes'] if 'matched_xhtml_index' in fn)

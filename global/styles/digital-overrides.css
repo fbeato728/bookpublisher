@@ -1,18 +1,5 @@
 @charset "utf-8";
-/* @font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Regular.ttf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: normal;
-  font-style: normal;
-  font-stretch: normal;
-}
-@font-face {
-  src: url(../fonts/Adobe_Garamond_Pro_Italic.ttf);
-  font-family: "Adobe Garamond Pro";
-  font-weight: normal;
-  font-style: italic;
-  font-stretch: normal;
-} */
+
 @media screen {
   .digital-only {
     display: block !important;
@@ -21,6 +8,8 @@
     display: none !important;
   }
   .bigTitleBody {display: none !important;}
+  .taulaBody {display: none !important;}
+  .insideCoverPrint {display: none !important;}
   .copyright-block, .copyright-block p {
     font-family: "Times New Roman", serif !important;
   }

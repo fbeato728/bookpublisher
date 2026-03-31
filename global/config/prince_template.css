@@ -91,7 +91,7 @@ html { font-size: {{FONT_SIZE}}; }
 
 /* ── Chapter breaks ──────────────────────────────────────────────────────── */
 
-.chapterBody, .part { break-before: {{CHAPTER_BREAK}}; }
+.chapterBody, .taulaBody { break-before: {{CHAPTER_BREAK}}; }
 
 /* ── TOC layout for Prince ───────────────────────────────────────────────── */
 

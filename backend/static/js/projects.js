@@ -17,6 +17,7 @@ async function showPanel(name) {
     loadOverview();
     loadImageList();
     loadMetadataPanel();
+    loadCssTokensPanel();
   }
   if (name === 'build' && currentProject) { 
     const preserveFile = buildPreviewFile;  // Save the currently previewed file
@@ -39,7 +40,10 @@ async function showPanel(name) {
     loadFootnotes(); 
   }
   if (name === 'split' && currentProject) { showSplitsView(); loadFullXhtml(); }
-  if (name === 'editor' && currentProject) { loadChapterList(); loadIgnoreWords(); loadFootnotes(); }
+  if (name === 'editor' && currentProject) {
+    loadChapterList(); loadIgnoreWords(); loadFootnotes();
+    apiFetch('POST', `/projects/${currentProject.id}/css-tokens/sync`).catch(() => {});
+  }
   if (name === 'pdf'    && currentProject) loadPdfPanel();
   if (monacoEditor) monacoEditor.layout();
 }
@@ -129,6 +133,8 @@ async function openProject(p) {
   document.querySelectorAll('.project-item').forEach(el =>
     el.classList.toggle('active', el.dataset.projectId === p.id)
   );
+  // Sync CSS tokens active file on project open (fire-and-forget)
+  await apiFetch('POST', `/projects/${currentProject.id}/css-tokens/sync`).catch(() => {});
   showPanel('overview');
 }
 
@@ -215,6 +221,21 @@ async function uploadManuscript() {
 }
 
 // ── Overview panel ───────────────────────────────────────────────────────────
+// Renders only the #overview-info block from currentProject in memory —
+// no API calls, runs synchronously. Called on metadata blur for instant
+// feedback; loadOverview() still runs in background for the full panel.
+function _renderOverviewInfo() {
+  if (!currentProject) return;
+  const info = document.getElementById('overview-info');
+  if (!info) return;
+  info.innerHTML = `
+    <div><span style="color:var(--text3)">Project ID</span>&emsp;${currentProject.id}</div>
+    <div><span style="color:var(--text3)">Title</span>&emsp;${escHtml(currentProject.title || '—')}</div>
+    <div><span style="color:var(--text3)">Author</span>&emsp;${escHtml(currentProject.author || '—')}</div>
+    <div><span style="color:var(--text3)">Status</span>&emsp;${escHtml(currentProject.status || '—')}</div>
+  `;
+}
+
 async function loadOverview() {
   if (!currentProject) return;
   const info   = document.getElementById('overview-info');
@@ -236,13 +257,18 @@ async function loadOverview() {
       <div><span style="color:var(--text3)">Project ID</span>&emsp;${currentProject.id}</div>
       <div><span style="color:var(--text3)">Title</span>&emsp;${currentProject.title || '—'}</div>
       <div><span style="color:var(--text3)">Author</span>&emsp;${currentProject.author || '—'}</div>
+      <div><span style="color:var(--text3)">Status</span>&emsp;${currentProject.status || '—'}</div>
       <div><span style="color:var(--text3)">full.xhtml</span>&emsp;✓</div>
       <div><span style="color:var(--text3)">Footnotes</span>&emsp;${hasFootnotes ? '✓' : '✗'}</div>
       <div><span style="color:var(--text3)">Chapters</span>&emsp;${chapters.length ? chapters.length + ' files' : '— none'}</div>
       <div><span style="color:var(--text3)">Build config</span>&emsp;${hasBuild ? '✓' : '—'}</div>
     `;
 
-    btn.disabled    = footnotesInjected;
+    const chaptersExist = chapters.length > 0;
+    btn.disabled    = footnotesInjected || chaptersExist;
+    btn.title       = (chaptersExist && !footnotesInjected)
+      ? 'Chapters already exist — detection must run on full.xhtml before splitting'
+      : '';
     btn.textContent = hasFootnotes ? '⎆ Re-detect Footnotes' : '⎆ Detect Footnotes';
     btn.dataset.hasFootnotes = hasFootnotes ? '1' : '';
 
@@ -257,8 +283,27 @@ async function loadOverview() {
       msg.textContent       = `${footnotesTotal} footnote${footnotesTotal !== 1 ? 's' : ''} detected.${statusText}`;
       results.style.display = 'block';
       resetBtn.style.display  = 'inline-block';
+      resetBtn.disabled       = chaptersExist;
+      resetBtn.title          = chaptersExist ? 'Cannot reset footnotes while chapters exist' : '';
       injectBtn.style.display = footnotesInjected ? 'none' : 'inline-block';
       injectBtn.disabled      = false;
+
+      // Audit
+      const auditEl = document.getElementById('overview-footnotes-audit');
+      try {
+        const audit = await apiFetch('GET', `/projects/${currentProject.id}/footnotes/audit`);
+        const n = audit.total_issues || 0;
+        if (n === 0) {
+          auditEl.textContent = '✓ No issues';
+          auditEl.style.color = 'var(--ok)';
+        } else {
+          const lines = audit.issues.map(i => `#${i.display_num} ${i.type}: ${i.detail}`).join('\n');
+          auditEl.textContent = `⚠ ${n} issue${n !== 1 ? 's' : ''}`;
+          auditEl.title = lines;
+          auditEl.style.color = 'var(--warn, var(--accent))';
+        }
+        auditEl.style.display = 'block';
+      } catch { auditEl.style.display = 'none'; }
     } else {
       results.style.display   = 'none';
       resetBtn.style.display  = 'none';
@@ -374,7 +419,13 @@ async function resetProject() {
   if (!confirm(`Reset project "${currentProject.id}"?\n\nThis will delete all chapter splits, keeping front/back matter, images, and the full converted manuscript (footnotes included if applicable).`)) return;
   try {
     await apiFetch('POST', `/projects/${currentProject.id}/reset`);
-    buildConfig = null;
+    localStorage.removeItem('splits:' + currentProject.id);
+    buildConfig              = null;
+    currentProject.chapters  = [];
+    currentProject.status    = 'converted'; // sync in-memory status — backend already wrote this to meta.json
+    splitSavedData           = [];
+    splitProjectId           = null;
+    splitMarkers             = [];
     showStatus('overview-status', '✓ Project reset', 'ok');
     loadOverview();
   } catch(e) { showStatus('overview-status', '✗ ' + e.message, 'err'); }
@@ -410,7 +461,14 @@ async function loadMetadataPanel() {
   // Group 1 tokens — skip, already rendered as static fields
   const GROUP1 = new Set(['title', 'author', 'language', 'publisher']);
 
-  usedTokens.forEach(token => {
+  // Sort by order field — tokens without order sort to the bottom
+  const sortedTokens = [...usedTokens].sort((a, b) => {
+    const orderA = tokenDefs[a]?.order ?? 9999;
+    const orderB = tokenDefs[b]?.order ?? 9999;
+    return orderA - orderB;
+  });
+
+  sortedTokens.forEach(token => {
     const def = tokenDefs[token];
     if (!def) return;
     if (def.ui === false) return;
@@ -436,4 +494,68 @@ async function loadMetadataPanel() {
         style="font-size:0.82rem">`;
     container.appendChild(row);
   });
+
+  // One delegated blur listener covers all meta fields — Group 1 fixed inputs
+  // (build-title etc.) already have data-meta-field in index.html; dynamic
+  // fields above also have it. No per-field hardcoding.
+  document.getElementById('overview-metadata').onblur = async e => {
+    const input = e.target.closest('[data-meta-field]');
+    if (!input) return;
+    const field = input.dataset.metaField;
+    const value = input.value.trim();
+    try {
+      await apiFetch('PATCH', `/projects/${currentProject.id}`, { [field]: value });
+      currentProject[field] = value;
+      _renderOverviewInfo(); // instant update — reads from memory, no API calls
+      loadOverview();        // background refresh for chapters/footnotes/build lines
+    } catch(err) { console.error('meta save:', field, err); }
+  };
+}
+
+// ── CSS Tokens panel ──────────────────────────────────────────────────────────
+
+async function loadCssTokensPanel() {
+  if (!currentProject) return;
+  const card      = document.getElementById('overview-css-tokens');
+  const container = document.getElementById('css-token-fields');
+  container.innerHTML = '';
+
+  let tokens = {};
+  try {
+    tokens = await apiFetch('GET', `/projects/${currentProject.id}/css-tokens`);
+  } catch(e) {
+    console.error('loadCssTokensPanel:', e);
+    if (card) card.style.display = 'none';
+    return;
+  }
+
+  if (!Object.keys(tokens).length) {
+    if (card) card.style.display = 'none';
+    return;
+  }
+  if (card) card.style.display = '';
+
+  for (const [token, cfg] of Object.entries(tokens)) {
+    const inputId = `css-token-${token.replace(/[{}]/g, '')}`;
+    const row = document.createElement('div');
+    row.className = 'form-group';
+    row.style.marginBottom = '0.5rem';
+    row.innerHTML = `
+      <label class="form-label" for="${inputId}" style="font-size:0.72rem">${escHtml(cfg.label)}</label>
+      <input class="form-input" type="text" id="${inputId}"
+        data-css-token="${escHtml(token)}"
+        placeholder="${escHtml(cfg.default)}"
+        value="${escHtml(cfg.value)}"
+        style="font-size:0.78rem">`;
+    container.appendChild(row);
+
+    const input = row.querySelector('input');
+    input.addEventListener('blur', async () => {
+      const val = input.value.trim() || cfg.default;
+      try {
+        await apiFetch('PUT', `/projects/${currentProject.id}/css-tokens`, { [token]: val });
+        if (typeof invalidateCssTokensCache === 'function') invalidateCssTokensCache();
+      } catch(e) { console.error('saveCssToken:', e); }
+    });
+  }
 }

@@ -1,0 +1,19 @@
+{
+  "css_files": {
+    "print-overrides.css":   "print",
+    "digital-overrides.css": "digital"
+  },
+  "tokens": {
+    "{{BODY_LINE_HEIGHT}}":      { "label": "Line height",              "default": "1.3em", "step": 0.05 },
+    "{{BODY_TEXT_INDENT}}":      { "label": "Text indent",              "default": "1.5em", "step": 0.1  },
+    "{{CHAPTER_NUM_FONT_SIZE}}": { "label": "Chapter title size",       "default": "1.5em", "step": 0.1  },
+    "{{CHAPTER_TOP_PADDING}}":   { "label": "Chapter top",              "default": "6em",   "step": 0.5  },
+    "{{CREDITS_FONT_SIZE}}":     { "label": "Credits size",             "default": "0.7em", "step": 0.05 },
+    "{{LOGO_HEIGHT}}":           { "label": "Logo height",              "default": "1.5em", "step": 0.1  },
+    "{{LOGO_PADDING_LEFT}}":     { "label": "Logo left",                "default": "5em",   "step": 0.1  },
+    "{{TITLE_FONT_SIZE}}":       { "label": "Title size",               "default": "1.6em", "step": 0.1 },
+    "{{TITLE_BOTTOM}}":          { "label": "Title bottom position",    "default": "17em",  "step": 0.5  },
+    "{{TABLE_TITLE_FONT_SIZE}}": { "label": "Table title size",         "default": "1.5em", "step": 0.1  },
+    "{{TABLE_TOP_PADDING}}":     { "label": "Table top",                "default": "2em", "step": 0.1  }
+  }
+}

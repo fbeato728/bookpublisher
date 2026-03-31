@@ -42,8 +42,8 @@ async function loadFullXhtml() {
       const i = idx;
       wrapper.addEventListener('click', (e) => {
         const area = document.getElementById('split-text-area');
-        if (area.classList.contains('footnotes-mode') && fnPickActive) {
-          console.log('[fn] text click in pick mode, xhtmlIndex:', i);
+        if (area.classList.contains('footnotes-mode') && (fnPickActive || fnMoveActive)) {
+          console.log('[fn] text click in pick/move mode, xhtmlIndex:', i);
           onFootnotePickClick(e, i, wrapper);
         } else if (!area.classList.contains('footnotes-mode')) {
           addSplitMarker(i, wrapper);
@@ -291,26 +291,33 @@ async function deleteAllChapterFiles() {
   const banner = document.getElementById('split-existing-banner');
   banner.innerHTML = '<span>Deleting…</span>';
   try {
-    const chapters = await apiFetch('GET', `/projects/${currentProject.id}/chapters`);
-    let errors = 0;
-    for (const ch of chapters) {
-      try { await apiFetch('DELETE', `/projects/${currentProject.id}/chapters/${ch.filename}`); }
-      catch { errors++; }
-    }
-    if (errors) {
-      showStatus('split-status', `⚠ ${errors} file${errors !== 1 ? 's' : ''} could not be deleted`, 'err');
+    // Single endpoint: deletes all chapter files, clears build_config.json chapters,
+    // and resets meta.json status → 'converted'. Replaces the old per-file DELETE loop
+    // which left meta.json and build_config.json in a stale 'split' state.
+    const result = await apiFetch('POST', `/projects/${currentProject.id}/chapters/delete-all`);
+
+    if (result.errors && result.errors.length) {
+      showStatus('split-status', `⚠ ${result.errors.length} file${result.errors.length !== 1 ? 's' : ''} could not be deleted`, 'err');
     } else {
-      showStatus('split-status', `✓ ${chapters.length} chapter file${chapters.length !== 1 ? 's' : ''} deleted`, 'ok');
+      showStatus('split-status', `✓ ${result.deleted.length} chapter file${result.deleted.length !== 1 ? 's' : ''} deleted`, 'ok');
     }
+
     banner.style.display = 'none';
     banner.innerHTML = '';
-    if (currentProject) currentProject.chapters = [];
+
+    // Sync in-memory project state — backend has already written these to disk
+    currentProject.chapters = [];
+    currentProject.status   = 'converted';
+    _updateFootnotesTabState(); // immediately remove strikethrough from Footnotes labels
+
+    // Clear split UI state
+    localStorage.removeItem('splits:' + currentProject.id);
     buildConfig = null; // force Build panel to reload
     loadBuildConfig();
-    // Clear readonly markers from DOM and state
     splitMarkers.forEach(m => m.marker.remove());
-    splitMarkers = [];
-    updateSplitList();    
+    splitMarkers   = [];
+    splitSavedData = [];
+    updateSplitList();
   } catch(e) { showStatus('split-status', '✗ ' + e.message, 'err'); }
 }
 
@@ -339,6 +346,7 @@ async function applySplits() {
     const data = await apiFetch('POST', `/projects/${currentProject.id}/split`, { splits });
     showStatus('split-status', `\u2713 ${data.saved.length} files created`, 'ok');
     currentProject.status = 'split'; currentProject.chapters = data.saved;
+    _updateFootnotesTabState(); // immediately apply strikethrough to Footnotes labels
     buildConfig = null; // force Build panel to reload
     // Replace editable markers with readonly ones from saved chapters
     splitMarkers.forEach(m => m.marker.remove());

@@ -398,3 +398,56 @@ def sync_chapters(project_id):
             json.dump(bc, f, indent=CONFIG['files']['json_indent'])
 
     return jsonify({'ok': True, 'chapters': final_chapters, 'errors': errors})
+
+@split_bp.route('/api/projects/<project_id>/chapters/delete-all', methods=['POST'])
+def delete_all_chapters(project_id):
+    """
+    Delete all chapter xhtml files from disk, clear chapters from
+    build_config.json, and reset meta.json status to 'converted'.
+    Front/back matter files and full.xhtml are never touched.
+    Called by the Split panel "Delete chapters" button.
+    """
+    project_dir = os.path.join(PROJECTS_DIR, project_id)
+    meta_path   = os.path.join(project_dir, CONFIG['paths']['files']['meta'])
+    bc_path     = os.path.join(project_dir, CONFIG['paths']['files']['build_config'])
+    xhtml_dir   = os.path.join(project_dir, CONFIG['paths']['subdirs']['xhtml'])
+
+    if not os.path.exists(meta_path):
+        return jsonify({'error': get_error_message('project_not_found')}), 404
+
+    errors  = []
+    deleted = []
+
+    # 1. Identify and delete chapter files only — files matching the chapter
+    #    naming pattern (NNNN_type_name.xhtml). Never touches full.xhtml or matter files.
+    if os.path.exists(xhtml_dir):
+        for fname in os.listdir(xhtml_dir):
+            if CHAPTER_RE.match(fname):
+                fpath = os.path.join(xhtml_dir, fname)
+                try:
+                    os.remove(fpath)
+                    deleted.append(fname)
+                except Exception as e:
+                    errors.append(get_error_message('delete_error', filename=fname, error=str(e)))
+
+    # 2. Clear chapters list from build_config.json, preserve front/back matter untouched
+    if os.path.exists(bc_path):
+        with open(bc_path) as f:
+            bc = json.load(f)
+        for profile in ('digital', 'print'):
+            if profile in bc:
+                bc[profile]['chapters'] = []
+        with open(bc_path, 'w') as f:
+            json.dump(bc, f, indent=CONFIG['files']['json_indent'])
+
+    # 3. Reset meta.json: clear chapters array and set status back to 'converted'
+    with open(meta_path) as f:
+        _raw_meta = json.load(f)
+    meta = _flatten_meta(_raw_meta)
+    meta['chapters'] = []
+    meta['status']   = 'converted'
+    out = _nest_meta(meta) if 'metadata' in _raw_meta else meta
+    with open(meta_path, 'w') as f:
+        json.dump(out, f, indent=CONFIG['files']['json_indent'])
+
+    return jsonify({'ok': True, 'deleted': deleted, 'errors': errors})

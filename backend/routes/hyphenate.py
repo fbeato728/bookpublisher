@@ -32,6 +32,9 @@ TAGS_IGNORE    = ['h1', 'h2', 'h3']
 
 SOFT_HYPHEN    = '\u00AD'
 _WORD_RE       = re.compile(r'\w+|[^\w]', re.UNICODE)
+_TOKEN_RE      = re.compile(r'(\{\{[A-Z_]+\}\})')
+
+from .utils import _restore_explicit_close
 
 # ── Hyphenator singleton ──────────────────────────────────────────────────────
 _hyph = None
@@ -79,18 +82,21 @@ def _hyphenate_file(filepath, hyph):
         parent = t.getparent()
         if parent is None:
             continue
+        # Skip comment nodes — their text can include tokens inside comments
+        # which causes lxml smart string / Cython type errors in regex
+        if isinstance(parent, etree._Comment):
+            continue
         tag_local = parent.tag.split('}')[-1] if '}' in parent.tag else parent.tag
         if tag_local in TAGS_IGNORE:
             continue
-        # Strip any existing soft hyphens before hyphenating — makes the
-        # operation idempotent (safe to run multiple times on the same file)
-        clean_t = t.replace(SOFT_HYPHEN, '')
+        # Force plain Python string — lxml smart strings can cause Cython type errors
+        clean_t = str(t).replace(SOFT_HYPHEN, '')
 
         # Split around {{TOKEN}} patterns — hyphenate only non-token segments
-        _TOKEN_RE = re.compile(r'(\{\{[A-Z_]+\}\})')
         segments = _TOKEN_RE.split(clean_t)
         newt = ''
         for seg in segments:
+            seg = str(seg)  # safety — ensure plain string after split
             if _TOKEN_RE.match(seg):
                 # Token — pass through untouched
                 newt += seg
@@ -106,8 +112,8 @@ def _hyphenate_file(filepath, hyph):
             parent.tail = newt
 
     with open(filepath, 'wb') as f:
-        f.write(etree.tostring(tree, xml_declaration=True,
-                               pretty_print=True, encoding='UTF-8'))
+        raw = etree.tostring(tree, xml_declaration=True, pretty_print=True, encoding='UTF-8')
+        f.write(_restore_explicit_close(raw))
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────

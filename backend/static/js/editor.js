@@ -60,17 +60,51 @@ async function loadChapterList() {
       list.innerHTML = '<div style="padding:1rem;font-family:var(--mono);font-size:0.72rem;color:var(--text3)">No files yet.<br>Go to Split first.</div>';
       return;
     }
+
+    function _getFileBadge(filename) {
+      if (!bConfig) return '';
+      let inDigital = false, inPrint = false;
+      ['front_matter', 'back_matter'].forEach(sec => {
+        (bConfig.digital?.[sec] || []).forEach(item => {
+          const f = item.filename || (item.id ? (item.id.endsWith('.xhtml') ? item.id : item.id + '.xhtml') : null);
+          if (f === filename) inDigital = true;
+        });
+        (bConfig.print?.[sec] || []).forEach(item => {
+          const f = item.filename || (item.id ? (item.id.endsWith('.xhtml') ? item.id : item.id + '.xhtml') : null);
+          if (f === filename) inPrint = true;
+        });
+      });
+      if (inDigital && inPrint) return 'B';
+      if (inDigital) return 'D';
+      if (inPrint)   return 'P';
+      return '';
+    }
+
+    function _makeFileItem(text, title, onclick, badge) {
+      const el = document.createElement('div');
+      el.className = 'editor-fileitem';
+      el.title = title;
+      el.onclick = onclick;
+      const label = document.createElement('span');
+      label.className = 'editor-fileitem-label';
+      label.textContent = text;
+      el.appendChild(label);
+      if (badge) {
+        const b = document.createElement('span');
+        b.className = 'editor-fileitem-badge';
+        b.textContent = badge;
+        el.appendChild(b);
+      }
+      return el;
+    }
+
     if (structural.length) {
       const sep = document.createElement('div');
       sep.style.cssText = 'padding:0.4rem 1rem 0.2rem;font-family:var(--mono);font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)';
       sep.textContent = 'Front / Back matter';
       list.appendChild(sep);
       structural.forEach(filename => {
-        const el = document.createElement('div');
-        el.className = 'editor-fileitem';
-        el.textContent = filename;
-        el.title = filename;
-        el.onclick = () => openChapter(filename, el);
+        const el = _makeFileItem(filename, filename, () => openChapter(filename, el), _getFileBadge(filename));
         list.appendChild(el);
       });
     }
@@ -80,12 +114,7 @@ async function loadChapterList() {
       sep.textContent = 'Chapters';
       list.appendChild(sep);
       chapters.forEach(ch => {
-        const el = document.createElement('div');
-        el.className = 'editor-fileitem';
-        el.textContent = ch.filename;
-        // el.textContent = ch.name || ch.filename;
-        el.title = ch.filename;
-        el.onclick = () => openChapter(ch.filename, el);
+        const el = _makeFileItem(ch.filename, ch.filename, () => openChapter(ch.filename, el), 'B');
         list.appendChild(el);
       });
     }
@@ -200,6 +229,7 @@ async function openChapter(filename, listEl) {
       await refreshPreview();
       
       setEditorStatus(data.source === 'global' ? '⚠ Loaded from global — save to create project override' : '', data.source === 'global' ? 'warn' : '');
+      loadCssTokenStrip();
     } else {
       // XHTML files: Always open in code mode - switchToCodeMode handles all initialization
       editorMode = 'code';
@@ -221,20 +251,6 @@ async function openChapter(filename, listEl) {
       
       fileIsHyphenated = data.content.includes('\u00AD');
       
-      // DISABLED: Don't duplicate - switchToCodeMode already loads content
-      // if (monacoEditor) {
-      //   const model = monacoEditor.getModel();
-      //   if (model) monaco.editor.setModelLanguage(model, 'xml');
-      //   monacoLoading = true;
-      //   monacoEditor.setValue(data.content);
-      //   monacoLoading = false;
-      //   setTimeout(() => { isDirty = false; }, 0);
-      // }
-      
-      // DISABLED: Text mode removed - no need to update text editor
-      // document.getElementById('editor-content').innerHTML = bodyHtmlLoad;
-      // document.getElementById('editor-content').dataset.rawXhtml = data.content;
-      
       setEditorStatus('', '');
       
       // CHANGED (STEP 11): Ensure preview always visible
@@ -245,6 +261,7 @@ async function openChapter(filename, listEl) {
       }
       await loadPreviewStyles();
       await refreshPreview();
+      loadCssTokenStrip();
     }
   } catch(e) { setEditorStatus('Error loading file', 'err'); }
 }
@@ -252,17 +269,21 @@ async function openChapter(filename, listEl) {
 // ── Preview pane ──────────────────────────────────────────────────────────────
 let previewMode = 'digital';  // 'digital' or 'print'
 
-function togglePreviewMode() {
+async function togglePreviewMode() {
   previewMode = previewMode === 'digital' ? 'print' : 'digital';
   const btn = document.getElementById('btn-preview-mode-toggle');
   btn.classList.toggle('mode-digital');
   btn.classList.toggle('mode-print');
-  
+
   if (previewVisible) {
     cachedStyles = {};
-    loadPreviewStyles();
-    refreshPreview();
+    // BLINK FIX: await styles fully built before touching content —
+    // previously these fired concurrently, leaving a gap where styles
+    // were gone but new content was already visible.
+    await loadPreviewStyles();
+    await refreshPreview();
   }
+  loadCssTokenStrip();
 }
 
 // currentStylesheet lives in globals.js (written from projects.js)
@@ -291,9 +312,37 @@ async function togglePreviewPane() {
 }
 
 // ── Token substitution cache ──────────────────────────────────────────────────
-let _tokensJsonCache = null;
+let _tokensJsonCache  = null;
+let _cssTokensCache   = null;
+let _cssTokensProject = null;
 let _fnMapCache      = null;
 let _fnMapProjectId  = null;
+
+async function _getCssTokens() {
+  if (_cssTokensCache && _cssTokensProject === currentProject?.id) return _cssTokensCache;
+  try {
+    const data = await apiFetch('GET', `/projects/${currentProject.id}/css-tokens`);
+    _cssTokensCache   = {};
+    _cssTokensProject = currentProject.id;
+    for (const [token, cfg] of Object.entries(data)) {
+      _cssTokensCache[token] = cfg.value || cfg.default || '';
+    }
+  } catch { _cssTokensCache = {}; _cssTokensProject = currentProject?.id; }
+  return _cssTokensCache;
+}
+
+function _applyCssTokens(css, tokens) {
+  for (const [token, value] of Object.entries(tokens)) {
+    css = css.replaceAll(token, value);
+  }
+  return css;
+}
+
+function invalidateCssTokensCache() {
+  _cssTokensCache   = null;
+  _cssTokensProject = null;
+  cachedStyles      = {};  // also clear CSS cache so preview re-fetches
+}
 
 async function _getFnMap() {
   if (_fnMapCache && _fnMapProjectId === currentProject?.id) return _fnMapCache;
@@ -376,13 +425,54 @@ async function refreshPreview() {
   // ← ONLY update body content, do NOT remove/re-add styles
   pane.innerHTML = body.innerHTML;
 
-  // Enrich fn-marker spans with footnote content as tooltip
+  // Enrich fn-marker spans with footnote content as custom HTML tooltip
   const fnSpans = pane.querySelectorAll('.fn-marker');
   if (fnSpans.length) {
     const fnMap = await _getFnMap();
     fnSpans.forEach(span => {
       const id = span.getAttribute('data-fn');
-      if (id && fnMap[id]) span.title = `[${span.getAttribute('data-display')}] ${fnMap[id]}`;
+      if (!id || !fnMap[id]) return;
+      const num     = span.getAttribute('data-display');
+      const content = fnMap[id];
+      span.title = ''; // clear any native tooltip
+      span.addEventListener('mouseenter', e => {
+        const tip = document.createElement('div');
+        tip.id = 'fn-hover-tip';
+        tip.style.cssText = `
+          position:fixed;
+          z-index:9999;
+          max-width:320px;
+          background:var(--bg2,#1e1e2e);
+          color:var(--text1,#cdd6f4);
+          border:1px solid var(--border,#45475a);
+          border-radius:5px;
+          padding:0.4rem 0.6rem;
+          font-family:var(--sans,'Inter',sans-serif);
+          font-size:0.78rem;
+          line-height:1.5;
+          pointer-events:none;
+          box-shadow:0 4px 16px rgba(0,0,0,0.4);
+        `;
+        tip.innerHTML = `<span style="opacity:0.5;font-size:0.7rem">[${num}]</span> ${content}`;
+        document.body.appendChild(tip);
+        // Position near cursor
+        const x = Math.min(e.clientX + 12, window.innerWidth  - 340);
+        const y = Math.min(e.clientY + 16, window.innerHeight - 80);
+        tip.style.left = x + 'px';
+        tip.style.top  = y + 'px';
+      });
+      span.addEventListener('mousemove', e => {
+        const tip = document.getElementById('fn-hover-tip');
+        if (!tip) return;
+        const x = Math.min(e.clientX + 12, window.innerWidth  - 340);
+        const y = Math.min(e.clientY + 16, window.innerHeight - 80);
+        tip.style.left = x + 'px';
+        tip.style.top  = y + 'px';
+      });
+      span.addEventListener('mouseleave', () => {
+        const tip = document.getElementById('fn-hover-tip');
+        if (tip) tip.remove();
+      });
     });
   }
 
@@ -390,110 +480,200 @@ async function refreshPreview() {
 }
 
 async function loadPreviewStyles() {
-  const pane = document.getElementById('preview-pane-body');
-  const oldStyles = pane.parentNode.querySelectorAll('style');
-  oldStyles.forEach(s => s.remove());
+  const pane     = document.getElementById('preview-pane-body');
+  const container = pane.parentNode;
 
-  let linkEls = [];
-  
-  // IF EDITING XHTML: Extract and save the stylesheet list
+  // BLINK FIX: Collect all new <style> elements into a fragment BEFORE
+  // touching the DOM. Old styles remain live the entire time async fetches
+  // run — there is never a moment where styles are gone and content is visible.
+  const fragment = document.createDocumentFragment();
+
+  // Helper: build a <style> element with token substitution applied
+  function _makeStyleEl(css, tokens) {
+    const el = document.createElement('style');
+    el.textContent = _applyCssTokens(css, tokens);
+    return el;
+  }
+
+  // ── Resolve which stylesheet hrefs this file needs ────────────────────────
+  let stylesheetHrefs = [];
   if (!currentChapterFile.endsWith('.css')) {
-    let xhtml = monacoEditor ? monacoEditor.getValue() : '';
+    // XHTML file: parse <link> tags from Monaco content and remember them
+    const xhtml  = monacoEditor ? monacoEditor.getValue() : '';
     const parser = new DOMParser();
-    const doc = parser.parseFromString(xhtml, 'text/html');
-    linkEls = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
-    
-    // Update our "memory" of what stylesheets this XHTML uses
-    lastXhtmlStylesheets = linkEls.map(link => link.getAttribute('href'));
-  } 
-  
-  // Use either the current links OR the "remembered" links if editing CSS
-  const stylesheetHrefs = currentChapterFile.endsWith('.css') 
-    ? lastXhtmlStylesheets 
-    : linkEls.map(link => link.getAttribute('href'));
+    const doc    = parser.parseFromString(xhtml, 'text/html');
+    const linkEls = Array.from(doc.querySelectorAll('link[rel="stylesheet"]'));
+    lastXhtmlStylesheets = linkEls.map(l => l.getAttribute('href'));
+    stylesheetHrefs = lastXhtmlStylesheets;
+  } else {
+    // CSS file: use the hrefs we remembered from the last XHTML that was open
+    stylesheetHrefs = lastXhtmlStylesheets;
+  }
 
+  // ── Fetch CSS tokens once — used for substitution on every style block ────
+  const cssTokens = await _getCssTokens();
+
+  // ── Build <style> elements for each linked stylesheet ────────────────────
   for (const href of stylesheetHrefs) {
     const cssFilename = href.split('/').pop();
-    
-    // IMPORTANT: If we are CURRENTLY editing this specific CSS file, 
-    // use the content from Monaco instead of the saved version.
+
     if (currentChapterFile === cssFilename && monacoEditor) {
-      const styleEl = document.createElement('style');
-      styleEl.textContent = monacoEditor.getValue();
-      pane.parentNode.insertBefore(styleEl, pane);
+      // Editing this exact CSS file live — use Monaco content directly
+      fragment.appendChild(_makeStyleEl(monacoEditor.getValue(), cssTokens));
       continue;
     }
 
-    // Otherwise, use cache or fetch from server as before
     if (cachedStyles[cssFilename]) {
-      const styleEl = document.createElement('style');
-      styleEl.textContent = cachedStyles[cssFilename];
-      pane.parentNode.insertBefore(styleEl, pane);
+      // Cache hit — no network round-trip needed
+      fragment.appendChild(_makeStyleEl(cachedStyles[cssFilename], cssTokens));
     } else {
       try {
+        // Cache miss — fetch once, store, then build element
         const cssData = await apiFetch('GET', `/projects/${currentProject.id}/styles/${cssFilename}`);
         cachedStyles[cssFilename] = cssData.content || '';
-        const styleEl = document.createElement('style');
-        styleEl.textContent = cachedStyles[cssFilename];
-        pane.parentNode.insertBefore(styleEl, pane);
+        fragment.appendChild(_makeStyleEl(cachedStyles[cssFilename], cssTokens));
       } catch(e) { console.warn(`CSS fetch failed: ${cssFilename}`); }
     }
   }
 
-  // Load overrides (keep your existing logic for print/digital overrides here)
-  // ...
-
-  // Load overrides
-// Load overrides
+  // ── Build <style> element for the profile override ───────────────────────
   const overrideFilename = previewMode === 'print' ? 'print-overrides.css' : 'digital-overrides.css';
   try {
     let overrideContent = '';
 
-    // NEW: Check if we are currently editing the override file itself
     if (currentChapterFile === overrideFilename && monacoEditor) {
+      // Editing the override file itself — use Monaco content live
       overrideContent = monacoEditor.getValue();
     } else if (cachedStyles[overrideFilename]) {
-      // Already extracted and cached — insert directly, no need to re-extract
-      const styleEl = document.createElement('style');
-      styleEl.textContent = cachedStyles[overrideFilename];
-      pane.parentNode.insertBefore(styleEl, pane);
-      overrideContent = ''; // nothing left to extract
+      // Already extracted and cached — use directly, no re-extraction needed
+      fragment.appendChild(_makeStyleEl(cachedStyles[overrideFilename], cssTokens));
+      overrideContent = ''; // signal: nothing left to extract below
     } else {
+      // Fetch and extract the relevant @media block
       const overrideData = await apiFetch('GET', `/projects/${currentProject.id}/styles/${overrideFilename}`);
       overrideContent = overrideData.content || '';
     }
 
-    // Extract rules from the editor content or fetched content (skipped if overrideContent is empty)
     if (overrideContent) {
-      const extractedRules = extractMediaRules(overrideContent, previewMode === 'print' ? '@media print' : '@media screen');
+      const strippedContent = overrideContent.replace(/\/\*[\s\S]*?\*\//g, '');
+      const mediaQuery      = previewMode === 'print' ? '@media print' : '@media screen';
+      const extractedRules  = extractMediaRules(strippedContent, mediaQuery);
       if (extractedRules) {
-        // Only cache if we aren't currently live-editing it
+        // Cache extracted rules (only when not live-editing the override)
         if (currentChapterFile !== overrideFilename) {
           cachedStyles[overrideFilename] = extractedRules;
         }
-        const styleEl = document.createElement('style');
-        styleEl.textContent = extractedRules;
-        pane.parentNode.insertBefore(styleEl, pane);
+        fragment.appendChild(_makeStyleEl(extractedRules, cssTokens));
       }
     }
   } catch(e) {
     console.error('Failed to load override CSS:', overrideFilename, e);
   }
+
+  // ── Atomic DOM swap ───────────────────────────────────────────────────────
+  // All async work is done. Now remove old styles and insert new ones in a
+  // single synchronous pass — the browser paints once, no intermediate state.
+  container.querySelectorAll('style').forEach(s => s.remove());
+  container.insertBefore(fragment, pane);
+}
+
+// ── CSS Token Strip ───────────────────────────────────────────────────────────
+// Default steps by unit — used when token has no step defined
+const _CSS_STRIP_STEPS = { 'em': 0.1, '%': 1, 'px': 1 };
+
+async function loadCssTokenStrip() {
+  const strip = document.getElementById('css-token-strip');
+  if (!strip || !currentProject || !currentChapterFile) { if (strip) strip.style.display = 'none'; return; }
+
+  const tokens = await apiFetch('GET', `/projects/${currentProject.id}/css-tokens`);
+  if (!tokens || !Object.keys(tokens).length) { strip.style.display = 'none'; return; }
+
+  // Scan current file content for class names and linked CSS files
+  const content = monacoEditor ? monacoEditor.getValue() : '';
+  const fileClasses = new Set((content.match(/class="([^"]+)"/g) || [])
+    .flatMap(m => m.replace(/class="|"/g, '').split(/\s+/)));
+
+  // Extract CSS filenames referenced in <link> tags of this file
+  // Also always include override files since they're loaded globally
+  const linkedCss = new Set((content.match(/href="([^"]+\.css)"/g) || [])
+    .map(m => m.replace(/href="|"/g, '').split('/').pop()));
+  linkedCss.add('print-overrides.css');
+  linkedCss.add('digital-overrides.css');
+
+  // Filter tokens by: css_file linked in this file + class match + profile
+  const matching = Object.entries(tokens).filter(([, cfg]) => {
+    // Token's CSS file must be linked in this XHTML file (or be an override)
+    if (cfg.css_file && !linkedCss.has(cfg.css_file)) return false;
+    const classes = cfg.classes || [];
+    if (classes.length && !classes.some(c => fileClasses.has(c))) return false;
+    const profile = cfg.profile || 'both';
+    if (profile === 'both') return true;
+    return profile === previewMode;
+  });
+
+  if (!matching.length) { strip.style.display = 'none'; return; }
+
+  strip.innerHTML = '';
+  strip.style.display = 'flex';
+
+  matching.forEach(([token, cfg]) => {
+    const val     = cfg.value || cfg.default || '';
+    const numMatch = val.match(/^([\d.]+)([a-z%]*)$/);
+    const num     = numMatch ? parseFloat(numMatch[1]) : null;
+    const unit    = numMatch ? numMatch[2] : '';
+    const step    = cfg.step != null ? cfg.step : (_CSS_STRIP_STEPS[unit] || 0.1);
+
+    const ctrl = document.createElement('div');
+    ctrl.className = 'css-strip-token';
+    ctrl.innerHTML = `
+      <span class="css-strip-label">${escHtml(cfg.label)}</span>
+      <button class="css-strip-btn" data-dir="-1">−</button>
+      <span class="css-strip-value">${escHtml(val)}</span>
+      <button class="css-strip-btn" data-dir="1">+</button>
+    `;
+    strip.appendChild(ctrl);
+
+    const valEl = ctrl.querySelector('.css-strip-value');
+    ctrl.querySelectorAll('.css-strip-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const dir     = parseInt(btn.dataset.dir);
+        const current = valEl.textContent.trim();
+        const m       = current.match(/^([\d.]+)([a-z%]*)$/);
+        if (!m || num === null) return;
+        const newNum  = Math.max(0, parseFloat(m[1]) + dir * step);
+        const newVal  = parseFloat(newNum.toFixed(4)).toString() + (m[2] || unit);
+        valEl.textContent = newVal;
+        cfg.value = newVal;
+        try {
+          await apiFetch('PUT', `/projects/${currentProject.id}/css-tokens`, { [token]: newVal });
+          if (typeof invalidateCssTokensCache === 'function') invalidateCssTokensCache();
+          // BLINK FIX: await both calls — styles must be fully swapped in
+          // before content repaints, same pattern as togglePreviewMode.
+          if (previewVisible) await loadPreviewStyles();
+          if (previewVisible) await refreshPreview();
+        } catch(e) { console.error('css-strip save:', e); }
+      });
+    });
+  });
 }
 
 function extractMediaRules(cssContent, mediaQuery) {
-  /**
-   * Extract CSS rules from @media query block.
-   * Example: @media print { ... } or @media screen { ... }
-   * Returns the rules without the @media wrapper.
-   */
-  const regex = new RegExp(`@media\\s+${mediaQuery.replace('@media ', '')}\\s*\\{([^{}]*(?:\\{[^{}]*\\}[^{}]*)*)\\}`, 'i');
-  const match = cssContent.match(regex);
-  
-  if (match && match[1]) {
-    return match[1].trim();
+  const keyword = mediaQuery.replace('@media ', '').trim();
+  const re = new RegExp('@media\\s+' + keyword + '\\s*\\{', 'i');
+  const match = re.exec(cssContent);
+  if (!match) return null;
+
+  // Start just after the opening { of @media block
+  const start = match.index + match[0].length;
+  let depth = 1;
+  let end   = -1;
+  for (let i = start; i < cssContent.length; i++) {
+    const ch = cssContent[i];
+    if (ch === '{')      depth++;
+    else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
   }
-  return null;
+  if (end === -1) return null;
+  return cssContent.slice(start, end).trim();
 }
 
 function switchToCodeMode(xhtml = '') {
@@ -791,6 +971,12 @@ async function saveChapter() {
     isDirty = false;
     setEditorStatus('Saved ✓', 'ok');
     if (previewVisible) debouncedRefreshPreview();
+
+    // Resync CSS tokens when a CSS file is saved — new tokens may have been added
+    if (isCss) {
+      apiFetch('POST', `/projects/${currentProject.id}/css-tokens/sync`).catch(() => {});
+      if (typeof invalidateCssTokensCache === 'function') invalidateCssTokensCache();
+    }
 
     // If this is a front/back matter file (not a chapter), refresh its Build preview
     if (!isChapter && !isCss && currentChapterFile) {
